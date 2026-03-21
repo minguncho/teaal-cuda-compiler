@@ -138,3 +138,16 @@ class Statement(Base, metaclass=abc.ABCMeta):
         Generate the HiFiber code for this Statement
         """
         raise NotImplementedError  # pragma: no cover
+
+
+class Declaration(Base, metaclass=abc.ABCMeta):
+    """
+    Declaration interface
+    """
+
+    @abc.abstractmethod
+    def gen(self) -> str:
+        """
+        Generate the HiFiber code for this Declaration
+        """
+        raise NotImplementedError  # pragma: no cover

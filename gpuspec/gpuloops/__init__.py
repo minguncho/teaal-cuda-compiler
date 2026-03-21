@@ -26,8 +26,12 @@ SOFTWARE.
 
 from .arg import *
 from .assn import *
+from .assn_c import *
 from .base import *
+from .decl import *
 from .expr import *
+from .expr_c import *
 from .op import *
 from .payload import *
 from .stmt import *
+from .stmt_c import *

@@ -1,3 +1,9 @@
+"""
+INSERT LICENSE HERE
+
+Translate an Einsum to the corresponding GPULoops code
+"""
+
 from typing import cast, List, Optional
 
 from gpuspec.gpuloops import *
@@ -23,35 +29,6 @@ from gpuspec.trans.utils import TransUtils
     - Come back for arch, binding, and hardware stuff
 """
 
-"""
-    The goal is to generate 1 file:
-        1. .cu file with main() function and GPU kernel
-    File contents for (1):
-        1. File description
-        2. Preprocessor directives (#pragma once, #include, macros,...)
-        3. GPU Kernel
-            - template
-            - function name with parameters
-            - contents
-        4. main() function
-            - function name with parameters
-            - define types (index_t, offset_t, type_t)
-            - Creating input tensors
-            - Based on defined tiles and atoms, generate a pointer for tiles
-            - Creating a scheduler
-            - Defining thread block and grid size
-            - A call to launch kernel
-            - Kernel synchronization
-            - Print out (or write to an output file) the benchmark result
-            - Validation for correctness
-"""
-
-"""
-    Challenges:
-    1. Multiple Einsum expression (HiFiber simply handles each expression separately)
-    2. Understanding spacetime and applying the sequential and parallel steps.
-"""
-
 
 class GPULoops:
     """
@@ -71,6 +48,7 @@ class GPULoops:
         Perform the Einsum to GPULoops translation
         """
         self.program = Program(einsum, mapping)
+        self.scheduler = scheduler
 
         self.hardware: Optional[Hardware] = None
         self.format = format_
@@ -79,6 +57,14 @@ class GPULoops:
             self.fusion = Fusion(self.hardware)
 
         self.trans_utils = TransUtils(self.program)
+
+        # Typenames and default type
+        self.typenames = {
+            "setup_t": None,
+            "index_t": "int",
+            "offset_t": "int",
+            "type_t": "float"
+        }
 
         # Check if file names exist
         required_fnames = ["loops_fname"]
@@ -139,8 +125,8 @@ class GPULoops:
         stmts = SBlock([])
 
         for comment in comments:
-            stmts.add(SExpr(EVar(comment)))
-        stmts.add(SExpr(EVar("")))  # Adding an empty line
+            stmts.add(SDecl(DDefn(comment)))
+        stmts.add(SDecl(DDefn("")))  # Adding an empty line
 
         return stmts
 
@@ -155,20 +141,20 @@ class GPULoops:
 
         # Add pragmas
         for pragma in pragmas:
-            stmts.add(SExpr(EVar(pragma)))
+            stmts.add(SDecl(DDefn(pragma)))
         if pragmas:
-            stmts.add(SExpr(EVar("")))  # Adding an empty line
+            stmts.add(SDecl(DDefn("")))  # Adding an empty line
 
         # Add includes
         for include in includes:
-            stmts.add(SExpr(EVar(f"#include {include}")))
-        stmts.add(SExpr(EVar("")))  # Adding an empty line
+            stmts.add(SDecl(DDefn(f"#include {include}")))
+        stmts.add(SDecl(DDefn("")))  # Adding an empty line
 
         # Add macros
         for macro in macros:
-            stmts.add(SExpr(EVar(macro)))
+            stmts.add(SDecl(DDefn(macro)))
         if macros:
-            stmts.add(SExpr(EVar("")))  # Adding
+            stmts.add(SDecl(DDefn("")))  # Adding
 
         return stmts
 
@@ -179,9 +165,9 @@ class GPULoops:
         stmts = SBlock([])
 
         for namespace in namespaces:
-            stmts.add(SExpr(EVar(f"using namespace {namespace};")))
+            stmts.add(SDecl(DDefn(f"using namespace {namespace};")))
         if namespaces:
-            stmts.add(SExpr(EVar("")))  # Adding an empty line
+            stmts.add(SDecl(DDefn("")))  # Adding an empty line
 
         return stmts
 
@@ -189,168 +175,105 @@ class GPULoops:
         """
         Add GPU kernel
         """
-        stmts = SBlock([])
 
-        return stmts
+        # Define kernel definition
+        template_types = list(self.typenames)
+        declarations = ["__global__"]
+        return_type = "void"
+        fn_name = "gpuloops_" + self.scheduler.get_scheduler()
+
+        # Define kernel argumnets
+        args = self.__construct_gpu_kernel_args()
+
+        # Sample args
+        '''args: List[Assignable] = [AVar_C("setup_t", "config"),
+                                  AVar_C("std::size_t", "rows", True),
+                                  AVar_C("std::size_t", "cols", True),
+                                  AVar_C("std::size_t", "nnz", True),
+                                  AVar_C("offset_t*", "offsets", True),
+                                  AVar_C("index_t*", "indices", True),
+                                  AVar_C("type_t*", "values", True),
+                                  AVar_C("type_t*", "x", True),
+                                  AVar_C("type_t*", "y")]'''
+
+        # Define kernel body
+        body = SBlock([])
+
+        gpu_kernel = SFunc_C(
+            return_type,
+            fn_name,
+            args,
+            body,
+            template_types,
+            declarations)
+
+        return gpu_kernel
+
+    def __construct_gpu_kernel_args(self) -> List[Assignable]:
+        """
+        Construct GPU kernel arguments
+        """
+        args: List[Assignable] = []
+
+        return args
+
+    def __construct_gpu_kernel_body(self) -> Statement:
+        """
+        Construct GPU kernel body
+        """
+        body = SBlock([])
+
+        return body
 
     def __add_main_fn(self) -> Statement:
         """
         Add main host function
         """
-        stmts = SBlock([])
 
-        return stmts
+        # Define function definition
+        return_type = "int"
+        fn_name = "main"
 
-    def __translate(self, i: int) -> Statement:
+        # Define function arguments
+        args: List[Assignable] = [AVar_C("int", "argc"),
+                                  AVar_C("char**", "argv")]
 
-        # Generate for the given einsum
-        self.program.add_einsum(i)
+        # Define function body
+        body = self.__construct_main_fn_body()
 
-        # Build metrics if there is hardware
-        """self.metrics: Optional[Metrics] = None
-        if self.hardware and self.format:
-            self.metrics = Metrics(self.program, self.hardware, self.format)
-            self.fusion.add_einsum(self.program)
+        main_fn = SFunc_C(
+            return_type,
+            fn_name,
+            args,
+            body)
 
-        # Create the flow graph and get the relevant nodes
-        flow_graph = FlowGraph(self.program, self.metrics, ["hoist"])
-        nodes = flow_graph.get_sorted()
+        return main_fn
 
-        # Create all relevant translator objects
-        self.graphics = Graphics(self.program, self.metrics)
-        self.partitioner = Partitioner(self.program, self.trans_utils)
-        self.header = Header(self.program, self.metrics, self.partitioner)
-        self.graph = IterationGraph(self.program)
-        self.eqn = Equation(self.program, self.metrics)
-
-        if self.metrics:
-            self.collector = Collector(self.program, self.metrics, self.fusion)
-
-        stmt = self.__trans_nodes(nodes)[1]"""
-
-        stmt = SBlock([])
-
-        self.program.reset()
-        return stmt
-
-    def __trans_nodes(self, nodes: List[Node]) -> Tuple[int, Statement]:
+    def __construct_main_fn_body(self) -> Statement:
         """
-        Recursive function to generate the actual GPULoops program
+        Construct main host body
         """
-        code = SBlock([])
+        body = SBlock([])
 
-        i = 0
-        """while i < len(nodes):
-            node = nodes[i]
+        # Step 1: Define typenames
 
-            if isinstance(node, EagerInputNode):
-                code.add(
-                    self.eqn.make_eager_inputs(
-                        node.get_rank(),
-                        node.get_tensors()))
+        # Step 2: Create parameters obj
 
-            elif isinstance(node, EndLoopNode):
-                return i + 1, code
+        # Step 3: Create tensors
 
-            elif isinstance(node, FromFiberNode):
-                tensor = self.program.get_equation().get_tensor(node.get_tensor())
-                code.add(Header.make_tensor_from_fiber(tensor))
+        # Step 4: Create tiles
 
-            elif isinstance(node, GetPayloadNode):
-                tensor = self.program.get_equation().get_tensor(node.get_tensor())
-                code.add(
-                    self.header.make_get_payload(
-                        tensor, node.get_ranks()))
+        # Step 5: Create a scheduler
 
-            elif isinstance(node, GetRootNode):
-                tensor = self.program.get_equation().get_tensor(node.get_tensor())
-                code.add(Header.make_get_root(tensor))
+        # Step 6: Define GPU kernel launch parameters
 
-            elif isinstance(node, IntervalNode):
-                code.add(self.eqn.make_interval(node.get_rank()))
+        # Step 7: Execute GPU kernel
 
-            elif isinstance(node, LoopNode):
-                # Generate the for loop
-                rank, tensors = self.graph.peek_concord()
-                expr = self.eqn.make_iter_expr(cast(str, rank), tensors)
-                _, tensors = self.graph.pop_concord()
-                payload = self.eqn.make_payload(cast(str, rank), tensors)
+        # Step 8: Validation
 
-                # Recurse for the for loop body
-                j, body = self.__trans_nodes(nodes[(i + 1):])
-                code.add(SFor(payload, expr, body))
-                i += j
+        # Step 9: Print output
 
-            elif isinstance(node, MetricsNode):
-                if node.get_type() == "Body":
-                    code.add(self.collector.make_body())
-
-                elif node.get_type() == "Dump":
-                    code.add(self.collector.dump())
-
-                elif node.get_type() == "End":
-                    code.add(self.collector.end())
-
-                elif node.get_type() == "Start":
-                    code.add(self.collector.start())
-
-                else:
-                    raise ValueError(
-                        "Unknown node: " +
-                        repr(node))  # pragma: no cover
-
-            elif isinstance(node, MetricsFooterNode):
-                code.add(self.collector.make_loop_footer(node.get_rank()))
-
-            elif isinstance(node, MetricsHeaderNode):
-                code.add(self.collector.make_loop_header(node.get_rank()))
-
-            elif isinstance(node, OtherNode):
-                if node.get_type() == "Body":
-                    code.add(self.eqn.make_update())
-                    code.add(self.graphics.make_body())
-
-                elif node.get_type() == "Footer":
-                    code.add(
-                        Footer.make_footer(
-                            self.program,
-                            self.graphics,
-                            self.partitioner))
-
-                elif node.get_type() == "Graphics":
-                    code.add(self.graphics.make_header())
-
-                elif node.get_type() == "Output":
-                    code.add(self.header.make_output())
-
-                else:
-                    raise ValueError(
-                        "Unknown node: " +
-                        repr(node))  # pragma: no cover
-
-            elif isinstance(node, PartNode):
-                tensor = self.program.get_equation().get_tensor(node.get_tensor())
-                ranks = node.get_ranks()
-
-                tensor.from_fiber()
-                code.add(self.partitioner.partition(tensor, ranks))
-
-            elif isinstance(node, SwizzleNode):
-                tensor = self.program.get_equation().get_tensor(node.get_tensor())
-                code.add(
-                    self.header.make_swizzle(
-                        tensor,
-                        node.get_ranks(),
-                        node.get_type()))
-
-            else:
-                raise ValueError(
-                    "Unknown node: " +
-                    repr(node))  # pragma: no cover
-
-            i += 1"""
-
-        return i, code
+        return body
 
     def get_files(self) -> dict[str, str]:
         """

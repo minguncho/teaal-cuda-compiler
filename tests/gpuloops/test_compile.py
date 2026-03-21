@@ -37,7 +37,7 @@ mapping:
       space: [M0]
       time: [M2, M1, K]
 scheduler:
-  thread-mapped
+  thread_mapped
 """
 
 

@@ -40,7 +40,7 @@ class Scheduler:
         self.scheduler = yaml["scheduler"]
 
         # Validate the scheduler name
-        valid_schedulers = ["thread-mapped", "group-mapped", "work-oriented"]
+        valid_schedulers = ["thread_mapped", "group_mapped", "work_oriented"]
         if self.scheduler not in valid_schedulers:
             raise ValueError(
                 f"Invalid scheduler '{self.scheduler}'. "
