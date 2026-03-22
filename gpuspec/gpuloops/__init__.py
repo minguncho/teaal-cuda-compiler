@@ -25,6 +25,7 @@ SOFTWARE.
 # GPULoops code generation __init__
 
 from .arg import *
+from .arg_c import *
 from .assn import *
 from .assn_c import *
 from .base import *

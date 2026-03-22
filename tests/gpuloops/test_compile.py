@@ -2,6 +2,8 @@ from copy import deepcopy
 
 # from fibertree_bootstrap import *
 
+import subprocess  # For formatting output file
+
 from gpuspec.parse import *
 from gpuspec.trans.hifiber import HiFiber
 from gpuspec.trans.gpuloops import GPULoops
@@ -55,11 +57,15 @@ def test_compile():
     file_names = {
         "loops_fname": "output.cu",
     }
+    problem_type = "SpMV"  # SpMV, SpMM, SpGEMM
+    N = 10  # Size of rank N
 
     gpuloops = GPULoops(
         einsum,
         mapping,
         scheduler,
+        problem_type,
+        N,
         file_names,
         arch,
         bindings,
@@ -68,6 +74,8 @@ def test_compile():
 
     with open(output_path + file_names["loops_fname"], "w") as f:
         f.write(files["loops_fname"])
+    subprocess.run(["clang-format", "-i", output_path +
+                   file_names["loops_fname"]])
 
     '''hifiber = HiFiber(einsum, mapping, arch, bindings, format_)
 

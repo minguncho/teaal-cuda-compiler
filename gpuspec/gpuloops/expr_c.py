@@ -8,7 +8,7 @@ import numpy as np
 
 from typing import Sequence
 
-from gpuspec.gpuloops.base import Expression
+from gpuspec.gpuloops.base import Argument, Expression
 
 
 class EFloat32(Expression):

@@ -67,6 +67,23 @@ class Scheduler:
         """
         return self.scheduler
 
+    def construct_expr(self,
+                       threads_per_block: int,
+                       threads_per_tile: int) -> str:
+        expr = ""
+        if self.scheduler == "thread_mapped":
+            expr = (
+                "schedule::setup<schedule::algorithms_t::thread_mapped, "
+                f"{str(threads_per_block)}, {str(threads_per_tile)}, "
+                "index_t, offset_t>")
+        elif self.scheduler == "group_mapped":
+            # TODO: Implement this
+            pass
+        else:  # work_oriented
+            # TODO: Implement this
+            pass
+        return expr
+
     def __eq__(self, other: object) -> bool:
         """
         The == operator for Scheduler
