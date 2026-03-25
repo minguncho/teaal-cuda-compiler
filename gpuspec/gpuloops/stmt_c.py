@@ -6,10 +6,11 @@ Additional implementation for statements targetted for C/C++ code
 
 from typing import List, Optional
 
-from gpuspec.gpuloops.base import Argument, Assignable, Expression, Declaration, Statement
+from gpuspec.gpuloops.base import Argument, Assignable, Expression, Declaration, Payload, Statement
+from gpuspec.gpuloops.stmt import SBlock
 
 
-class SDecl(Statement):
+class SDecl_C(Statement):
     """
     A statement that is a declaration
     """
@@ -24,7 +25,7 @@ class SDecl(Statement):
         return "    " * depth + self.decl.gen()
 
 
-class SPrint(Statement):
+class SPrint_C(Statement):
     """
     A print (std::cout) statement
     """
@@ -88,7 +89,7 @@ class SAssignObj_C(Statement):
         return "    " * depth + self.assn.gen() + self.expr.gen() + ";"
 
 
-class SAssignTypename(Statement):
+class SAssignTypename_C(Statement):
     """
     An assignment for typename
     """
@@ -118,6 +119,29 @@ class SExpr_C(Statement):
         Generate the GPULoops output for an SExpr
         """
         return "    " * depth + self.expr.gen() + ";"
+
+
+class SRangeFor_C(Statement):
+    """
+    A range-based for loop
+    """
+
+    def __init__(
+            self,
+            payload: Payload,
+            expr: Expression,
+            body: SBlock) -> None:
+        self.payload = payload
+        self.expr = expr
+        self.body = body
+
+    def gen(self, depth: int) -> str:
+        """
+        Generate the HiFiber output for an SFor
+        """
+        return "    " * depth + "for (" + \
+            self.payload.gen(False) + " : " + self.expr.gen() + \
+            ") {\n" + self.body.gen(depth + 1) + "}\n"
 
 
 class SFunc_C(Statement):

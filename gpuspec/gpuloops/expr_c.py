@@ -11,7 +11,7 @@ from typing import Sequence
 from gpuspec.gpuloops.base import Argument, Expression
 
 
-class EFloat32(Expression):
+class EFloat32_C(Expression):
     """
     An GPULoops float (32-bit)
 
@@ -33,7 +33,7 @@ class EFloat32(Expression):
             return str(self.float)
 
 
-class EDouble(Expression):
+class EDouble_C(Expression):
     """
     An GPULoops double (64-bit)
 
@@ -55,7 +55,7 @@ class EDouble(Expression):
             return str(self.double)
 
 
-class EVector(Expression):
+class EVector_C(Expression):
     """
     An GPULoops Vector
 
@@ -72,7 +72,7 @@ class EVector(Expression):
         return "[" + ", ".join([e.gen() for e in self.vector]) + "]"
 
 
-class EArray(Expression):
+class EArray_C(Expression):
     """
     An GPULoops Array
 

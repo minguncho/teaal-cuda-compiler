@@ -34,5 +34,6 @@ from .expr import *
 from .expr_c import *
 from .op import *
 from .payload import *
+from .payload_c import *
 from .stmt import *
 from .stmt_c import *
