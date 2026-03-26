@@ -197,6 +197,21 @@ class SFunc(Statement):
             self.name + "(" + args_str + ") {\n" + self.body.gen(depth + 1) + "\n}\n"
 
 
+class SNewEmptyLine(Statement):
+    """
+    A new empty line statement
+    """
+
+    def __init__(self) -> None:
+        pass
+
+    def gen(self, depth: int) -> str:
+        """
+        Generate the C/C++ output for SNewEmptyLine
+        """
+        return "\n"
+
+
 class SPrint(Statement):
     """
     A print (std::cout) statement
