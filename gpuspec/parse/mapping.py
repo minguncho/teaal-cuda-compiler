@@ -25,9 +25,8 @@ Parse the input YAML for the mapping
 """
 
 from lark.tree import Tree
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional
 
-from gpuspec.parse.spacetime import SpaceTimeParser
 from gpuspec.parse.partitioning import PartitioningParser
 from gpuspec.parse.yaml import YamlParser
 
@@ -41,73 +40,82 @@ class Mapping:
         """
         Read the YAML input
         """
-        loop_orders = None
-        partitioning: Optional[Dict[str, Dict[Tree, List[Tree]]]] = None
-        rank_orders = None
-        # Use type dict, since the dictionary is very heterogeneous
-        spacetime: Optional[dict] = None
+        work_atom: List[str]
+        work_unit: List[str] | Dict[str, Dict[Tree, List[Tree]]]
+        work_tile: List[str] | Dict[str, Dict[Tree, List[Tree]]]
 
         if yaml is not None and "mapping" in yaml.keys() and \
                 yaml["mapping"] is not None:
             mapping = yaml["mapping"]
 
-            if "loop-order" in mapping.keys():
-                loop_orders = mapping["loop-order"]
+            if "work_atom" in mapping.keys():
+                work_atom = mapping["work_atom"]
 
-            if "partitioning" in mapping.keys():
-                partitioning = {}
-                for tensor, ranks in mapping["partitioning"].items():
-                    partitioning[tensor] = {}
+            if "work_unit" in mapping.keys():
+                if isinstance(mapping["work_unit"], list):
+                    work_unit = mapping["work_unit"]
+                elif isinstance(mapping["work_unit"], dict):
+                    work_unit = {}
 
-                    if ranks is None:
-                        continue
+                    for tensor, ranks in mapping["work_unit"].items():
+                        work_unit[tensor] = {}
 
-                    for ranks_str, parts in ranks.items():
-                        ranks_tree = PartitioningParser.parse_ranks(ranks_str)
-                        partitioning[tensor][ranks_tree] = []
-                        for part in parts:
-                            partitioning[tensor][ranks_tree].append(
-                                PartitioningParser.parse_partitioning(part))
+                        if ranks is None:
+                            continue
 
-            if "rank-order" in mapping.keys():
-                rank_orders = mapping["rank-order"]
+                        for ranks_str, parts in ranks.items():
+                            ranks_tree = PartitioningParser.parse_ranks(
+                                ranks_str)
+                            work_unit[tensor][ranks_tree] = []
+                            for part in parts:
+                                work_unit[tensor][ranks_tree].append(
+                                    PartitioningParser.parse_partitioning(part))
+                else:
+                    raise KeyError(
+                        f"Invalid type of work_unit: '{mapping["work_unit"]}', "
+                        "must be a \'list\' of ranks or a \'dict\' of rank and partitioning "
+                        "mapping information")
 
-            if "spacetime" in mapping.keys(
-            ) and mapping["spacetime"] is not None:
-                spacetime = {}
-                for tensor, info in mapping["spacetime"].items():
-                    spacetime[tensor] = {}
+            if "work_tile" in mapping.keys():
 
-                    # Parse the space and time stamps
-                    for stamp in ["space", "time"]:
-                        spacetime[tensor][stamp] = []
-                        for rank in info[stamp]:
-                            spacetime[tensor][stamp].append(
-                                SpaceTimeParser.parse(rank))
+                if isinstance(mapping["work_tile"], list):
+                    work_tile = mapping["work_tile"]
+                elif isinstance(mapping["work_tile"], dict):
+                    work_tile = {}
 
-                    # Store any other optimizations
-                    if "opt" in info.keys():
-                        spacetime[tensor]["opt"] = info["opt"]
+                    for tensor, ranks in mapping["work_tile"].items():
+                        work_tile[tensor] = {}
 
-        if loop_orders is None:
-            self.loop_orders = {}
+                        if ranks is None:
+                            continue
+
+                        for ranks_str, parts in ranks.items():
+                            ranks_tree = PartitioningParser.parse_ranks(
+                                ranks_str)
+                            work_tile[tensor][ranks_tree] = []
+                            for part in parts:
+                                work_tile[tensor][ranks_tree].append(
+                                    PartitioningParser.parse_partitioning(part))
+                else:
+                    raise KeyError(
+                        f"Invalid type of work_tile: '{mapping["work_tile"]}', "
+                        "must be a \'list\' of ranks or a \'dict\' of rank and partitioning "
+                        "mapping information")
+
+        if work_atom is None:
+            raise KeyError(f"Undefined work_atomt!")
         else:
-            self.loop_orders = loop_orders
+            self.work_atom = work_atom
 
-        if partitioning is None:
-            self.partitioning = {}
+        if work_unit is None:
+            raise KeyError(f"Undefined work_unit!")
         else:
-            self.partitioning = partitioning
+            self.work_unit = work_unit
 
-        if rank_orders is None:
-            self.rank_orders = {}
+        if work_tile is None:
+            raise KeyError(f"Undefined work_tile!")
         else:
-            self.rank_orders = rank_orders
-
-        if spacetime is None:
-            self.spacetime = {}
-        else:
-            self.spacetime = spacetime
+            self.work_tile = work_tile
 
     @classmethod
     def from_file(cls, filename: str) -> "Mapping":
@@ -123,38 +131,30 @@ class Mapping:
         """
         return cls(YamlParser.parse_str(string))
 
-    def get_loop_orders(self) -> Dict[str, List[str]]:
+    def get_work_atom(self) -> List[str]:
         """
-        Get the dictionary from output tensors to loop orders
+        Get the work_atom information
         """
-        return self.loop_orders
+        return self.work_atom
 
-    def get_partitioning(self) -> Dict[str, Dict[Tree, List[Tree]]]:
+    def get_work_unit(self) -> List[str] | Dict[str, Dict[Tree, List[Tree]]]:
         """
-        Get a dictionary from output tensors to a dictionary of rank variables
-        to partitioning information
+        Get the work_unit information
         """
-        return self.partitioning
+        return self.work_unit
 
-    def get_rank_orders(self) -> Dict[str, List[str]]:
+    def get_work_tile(self) -> List[str] | Dict[str, Dict[Tree, List[Tree]]]:
         """
-        Get any rank orders specified
+        Get the work_tile information
         """
-        return self.rank_orders
-
-    def get_spacetime(self) -> dict:
-        """
-        Get the spacetime information
-        """
-        return self.spacetime
+        return self.work_tile
 
     def __eq__(self, other: object) -> bool:
         """
         The == operator for Mappings
         """
         if isinstance(other, type(self)):
-            return self.spacetime == other.spacetime and \
-                self.loop_orders == other.loop_orders and \
-                self.partitioning == other.partitioning and \
-                self.rank_orders == other.rank_orders
+            return self.work_atom == other.work_atom and \
+                self.work_unit == other.work_unit and \
+                self.work_tile == other.work_tile
         return False

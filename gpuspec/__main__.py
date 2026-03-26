@@ -33,7 +33,8 @@ if __name__ == "__main__":  # pragma: no cover
 
     # Import the necessary classes
     from gpuspec.parse import *
-    from gpuspec.trans.hifiber import HiFiber
+    from gpuspec.trans.gpuloops import GPULoops
+    import subprocess  # For formatting output file
 
     # Make sure we are given exactly one argument
     if len(sys.argv) != 2:
@@ -43,8 +44,15 @@ if __name__ == "__main__":  # pragma: no cover
     else:
         einsum = Einsum.from_file(sys.argv[1])
         mapping = Mapping.from_file(sys.argv[1])
-        arch = Architecture.from_file(sys.argv[1])
-        bindings = Bindings.from_file(sys.argv[1])
-        format_ = Format.from_file(sys.argv[1])
-        hifiber = HiFiber(einsum, mapping, arch, bindings, format_)
-        print(hifiber)
+        scheduler = Scheduler.from_file(sys.argv[1])
+
+        output_file = "./outputs/output.cu"
+        problem_type = "SpMV"  # SpMV, SpMM, SpGEMM
+        N = 10  # Size of rank N
+
+        gpuloops = GPULoops(einsum, mapping, scheduler,
+                            problem_type, N)
+
+        with open(output_file, "w") as f:
+            f.write(str(gpuloops))
+        subprocess.run(["clang-format", "-i", output_file])

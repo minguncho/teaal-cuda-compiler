@@ -21,15 +21,17 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-HiFiber AST and code generation for HiFiber expressions
+GPULoops AST and code generation for argument expressions in C/C++
 """
+
+from typing import Optional
 
 from gpuspec.gpuloops.base import Argument, Expression
 
 
 class AJust(Argument):
     """
-    An unparameterized argument to an HiFiber function
+    An unparameterized argument to an GPULoops function
     """
 
     def __init__(self, expr: Expression) -> None:
@@ -37,22 +39,25 @@ class AJust(Argument):
 
     def gen(self) -> str:
         """
-        Generate the HiFiber code for an AJust
+        Generate the C/C++ code for an AJust
         """
         return self.expr.gen()
 
 
 class AParam(Argument):
     """
-    A parameterized argument to an HiFiber function
+    A GPULoops parameterized argument
     """
 
-    def __init__(self, name: str, expr: Expression) -> None:
+    def __init__(self, var_type: str, name: str,
+                 const: Optional[str] = None) -> None:
+        self.var_type = var_type
         self.name = name
-        self.expr = expr
+        self.const = const
 
     def gen(self) -> str:
         """
-        Generate the HiFiber code for an AParam
+        Generate the C/C++ code for an AParamC
         """
-        return self.name + "=" + self.expr.gen()
+        c = f"{self.const} " if self.const else ""
+        return f"{c}{self.var_type} {self.name}"

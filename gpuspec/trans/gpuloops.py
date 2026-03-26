@@ -7,26 +7,12 @@ Translate an Einsum to the corresponding GPULoops code
 from typing import cast, List, Optional
 
 from gpuspec.gpuloops import *
-from gpuspec.ir.flow_graph import FlowGraph
-from gpuspec.ir.flow_nodes import *
-from gpuspec.ir.fusion import Fusion
-from gpuspec.ir.hardware import Hardware
-from gpuspec.ir.iter_graph import IterationGraph
-from gpuspec.ir.metrics import Metrics
-from gpuspec.ir.node import Node
-from gpuspec.ir.program import Program
 from gpuspec.parse import *
-from gpuspec.trans.collector import Collector
-from gpuspec.trans.graphics import Graphics
-from gpuspec.trans.equation import Equation
-from gpuspec.trans.footer import Footer
-from gpuspec.trans.header import Header
-from gpuspec.trans.partitioner import Partitioner
-from gpuspec.trans.utils import TransUtils
 
 """
     TODO:
     - Come back for arch, binding, and hardware stuff
+    1. Develop a flow graph
 """
 
 
@@ -42,34 +28,21 @@ class GPULoops:
             scheduler: Scheduler,
             problem_type: str,
             N: int,
-            file_names: dict[str, str],
-            arch: Optional[Architecture] = None,
-            bindings: Optional[Bindings] = None,
-            format_: Optional[Format] = None,
             block_size: Optional[str] = None,
             grid_size: Optional[str] = None) -> None:
         """
         Perform the Einsum to GPULoops translation
         """
-        self.program = Program(einsum, mapping)
+        self.einsum = einsum
+        self.mapping = mapping
         self.scheduler = scheduler
         self.problem_type = problem_type
-
-        # Check for problem_type
-        req_problem_type = ["SpMV", "SpMM", "SpGEMM"]
-        if problem_type not in req_problem_type:
-            req_str = ", ".join([f"\"{t}\"" for t in req_problem_type])
-            raise KeyError(
-                f"Invalid problem type: '{problem_type}', must be {req_str}")
-
         self.N = N
-        self.hardware: Optional[Hardware] = None
-        self.format = format_
-        if arch and bindings and arch.get_spec():
-            self.hardware = Hardware(arch, bindings, self.program)
-            self.fusion = Fusion(self.hardware)
 
-        self.trans_utils = TransUtils(self.program)
+        # Check for length of einsum expressions
+        if len(einsum.get_expressions()) != 1:
+            raise ValueError(
+                "Current version only supports 1 Einsum expression!")
 
         # Typenames and default type
         self.typenames = {
@@ -78,14 +51,6 @@ class GPULoops:
             "offset_t": "int",
             "type_t": "float"
         }
-
-        # Check if file names exist
-        req_fnames = ["loops_fname"]
-        for fname in req_fnames:
-            if fname not in file_names:
-                raise KeyError(
-                    f"Missing required file name configuration: '{fname}'")
-        self.file_names = file_names
 
         # Default kernel parameters
         self.block_size = "128"
@@ -96,7 +61,7 @@ class GPULoops:
         if grid_size:
             self.grid_size = grid_size
 
-        self.loops_file = self.__generate_loops_file()
+        self.gpuloops = self.__generate_loops_file()
 
     def __generate_loops_file(self) -> Statement:
         """
@@ -108,7 +73,6 @@ class GPULoops:
         # Step 1: Add file description
         comments = [
             "/**",
-            " * @file " + self.file_names["loops_fname"],
             " * Generated Loops code",
             "*/"
         ]
@@ -147,8 +111,8 @@ class GPULoops:
         stmts = SBlock([])
 
         for comment in comments:
-            stmts.add(SDecl_C(DDefn(comment)))
-        stmts.add(SDecl_C(DDefn("")))  # Adding an empty line
+            stmts.add(SDecl(DDefn(comment)))
+        stmts.add(SDecl(DDefn("")))  # Adding an empty line
 
         return stmts
 
@@ -163,20 +127,20 @@ class GPULoops:
 
         # Add pragmas
         for pragma in pragmas:
-            stmts.add(SDecl_C(DDefn(pragma)))
+            stmts.add(SDecl(DDefn(pragma)))
         if pragmas:
-            stmts.add(SDecl_C(DDefn("")))  # Adding an empty line
+            stmts.add(SDecl(DDefn("")))  # Adding an empty line
 
         # Add includes
         for include in includes:
-            stmts.add(SDecl_C(DDefn(f"#include {include}")))
-        stmts.add(SDecl_C(DDefn("")))  # Adding an empty line
+            stmts.add(SDecl(DDefn(f"#include {include}")))
+        stmts.add(SDecl(DDefn("")))  # Adding an empty line
 
         # Add macros
         for macro in macros:
-            stmts.add(SDecl_C(DDefn(macro)))
+            stmts.add(SDecl(DDefn(macro)))
         if macros:
-            stmts.add(SDecl_C(DDefn("")))  # Adding an empty line
+            stmts.add(SDecl(DDefn("")))  # Adding an empty line
 
         return stmts
 
@@ -187,9 +151,9 @@ class GPULoops:
         stmts = SBlock([])
 
         for namespace in namespaces:
-            stmts.add(SDecl_C(DDefn(f"using namespace {namespace};")))
+            stmts.add(SDecl(DDefn(f"using namespace {namespace};")))
         if namespaces:
-            stmts.add(SDecl_C(DDefn("")))  # Adding an empty line
+            stmts.add(SDecl(DDefn("")))  # Adding an empty line
 
         return stmts
 
@@ -210,7 +174,7 @@ class GPULoops:
         # Define kernel body
         body = self.__construct_gpu_kernel_body()
 
-        gpu_kernel = SFunc_C(
+        gpu_kernel = SFunc(
             return_type,
             fn_name,
             args,
@@ -228,9 +192,9 @@ class GPULoops:
 
         if self.scheduler.get_scheduler() == "thread_mapped":
             # Requird args
-            args.append(AParam_C("setup_t", "config"))
-            args.append(AParam_C("type_t*", "B", "const"))
-            args.append(AParam_C("type_t*", "Z"))
+            args.append(AParam("setup_t", "config"))
+            args.append(AParam("type_t*", "B", "const"))
+            args.append(AParam("type_t*", "Z"))
 
         elif self.scheduler.get_scheduler() == "group_mapped":
             pass
@@ -248,28 +212,28 @@ class GPULoops:
         if self.scheduler.get_scheduler() == "thread_mapped":
             # Construct the body for inner for-loop (traversing atoms)
             inner_body = SBlock([])
-            inner_body.add(SDecl_C(DDefn("//TODO: Implement this\n")))
+            inner_body.add(SDecl(DDefn("//TODO: Implement this\n")))
 
             # Construct the body for outer for-loop (traversing tiles)
             outer_body = SBlock([])
-            outer_body.add(SAssign_C(AVar_C("type_t", "sum"), EVar("0")))
-            outer_body.add(SDecl_C(DDefn("")))  # Add an empty line
+            outer_body.add(SAssign(ANewVar("type_t", "sum"), EVar("0")))
+            outer_body.add(SDecl(DDefn("")))  # Add an empty line
 
-            outer_body.add(SRangeFor_C(PVar_C("auto", "atom"),
-                                       EMethod(EVar("config"),
-                                               "atoms",
-                                               [AJust(EVar("tile"))]),
-                                       inner_body))
-            outer_body.add(SDecl_C(DDefn("")))  # Add an empty line
+            outer_body.add(SRangeFor(PVar("auto", "atom"),
+                                     EMethod(EVar("config"),
+                                             "atoms",
+                                             [AJust(EVar("tile"))]),
+                                     inner_body))
+            outer_body.add(SDecl(DDefn("")))  # Add an empty line
 
-            outer_body.add(SAssign_C(AAccess(EVar("Z"), EVar("tile")),
-                                     EVar("sum")))
+            outer_body.add(SAssign(AAccess(EVar("Z"), EVar("tile")),
+                                   EVar("sum")))
 
             # Build the outer for-loop
-            body.add(SRangeFor_C(PVar_C("auto", "tile"),
-                                 EMethod(EVar("config"),
-                                         "tiles", []),
-                                 outer_body))
+            body.add(SRangeFor(PVar("auto", "tile"),
+                               EMethod(EVar("config"),
+                                       "tiles", []),
+                               outer_body))
 
         elif self.scheduler.get_scheduler() == "group_mapped":
             pass
@@ -288,13 +252,13 @@ class GPULoops:
         fn_name = "main"
 
         # Define function arguments
-        args: List[Argument] = [AParam_C("int", "argc"),
-                                AParam_C("char**", "argv")]
+        args: List[Argument] = [AParam("int", "argc"),
+                                AParam("char**", "argv")]
 
         # Define function body
         body = self.__construct_main_fn_body()
 
-        main_fn = SFunc_C(
+        main_fn = SFunc(
             return_type,
             fn_name,
             args,
@@ -312,88 +276,88 @@ class GPULoops:
         for name, data_type in self.typenames.items():
             if name == "setup_t" or data_type is None:
                 continue
-            body.add(SAssignTypename_C(AVar(name), EVar(data_type)))
-        body.add(SDecl_C(DDefn("")))  # Adding an empty line
+            body.add(SAssignTypename(AVar(name), EVar(data_type)))
+        body.add(SDecl(DDefn("")))  # Adding an empty line
 
         # Step 2: Create parameters obj
         body.add(
-            SAssignObj_C(
-                AVar_C("parameters_t", "parameters"),
+            SAssignObj(
+                ANewVar("parameters_t", "parameters"),
                 EFunc("",
                       [AJust(EVar("argc")),
                        AJust(EVar("argv"))])))
-        body.add(SDecl_C(DDefn("")))  # Adding an empty line
+        body.add(SDecl(DDefn("")))  # Adding an empty line
 
         # Step 3: Create an input tensor A
         body.add(
-            SAssignEmpty_C(
-                AVar_C("matrix_market_t<index_t, offset_t, type_t>",
-                       "mtx")))
+            SAssignEmpty(
+                ANewVar("matrix_market_t<index_t, offset_t, type_t>",
+                        "mtx")))
         body.add(
-            SAssignObj_C(
-                AVar_C(
+            SAssignObj(
+                ANewVar(
                     "csr_t<index_t, offset_t, type_t>", "A"), EParens(
                     EMethod(
                         EVar("mtx"), "load", [
                             AJust(
                                 EField("parameters", "filename"))]))))
-        body.add(SDecl_C(DDefn("")))  # Adding an empty line
+        body.add(SDecl(DDefn("")))  # Adding an empty line
 
         # Step 4: Based on problem type, create tensor B and Z
         if self.problem_type == "SpMV":
             # B and Z are vectors
-            body.add(SAssignObj_C(
-                AVar_C(
+            body.add(SAssignObj(
+                ANewVar(
                     "vector_t<type_t>", "B"),
                 EFunc("",
                       [AJust(EField("A", "cols"))])))
 
-            body.add(SAssignObj_C(
-                AVar_C(
+            body.add(SAssignObj(
+                ANewVar(
                     "vector_t<type_t>", "Z"),
                 EFunc("",
                       [AJust(EField("A", "rows"))])))
-            body.add(SDecl_C(DDefn("")))  # Adding an empty line
+            body.add(SDecl(DDefn("")))  # Adding an empty line
 
             # Initialize vector B
-            body.add(SExpr_C(EFunc("generate::random::uniform_distribution",
-                                   [AJust(EMethod(EVar("B"), "begin", [])),
-                                    AJust(EMethod(EVar("B"), "begin", [])),
-                                       AJust(EVar(str(1))),
-                                       AJust(EVar(str(self.N)))])))
-            body.add(SDecl_C(DDefn("")))  # Adding an empty line
+            body.add(SExpr(EFunc("generate::random::uniform_distribution",
+                                 [AJust(EMethod(EVar("B"), "begin", [])),
+                                  AJust(EMethod(EVar("B"), "begin", [])),
+                                  AJust(EVar(str(1))),
+                                  AJust(EVar(str(self.N)))])))
+            body.add(SDecl(DDefn("")))  # Adding an empty line
         else:  # SpMM, SpGEMM
             # B and Z are matrices
-            body.add(SAssign_C(AVar_C("std::size_t", "n"), EVar(str(self.N))))
+            body.add(SAssign(ANewVar("std::size_t", "n"), EVar(str(self.N))))
 
             if self.problem_type == "SpMM":
-                body.add(SAssignObj_C(
-                    AVar_C(
+                body.add(SAssignObj(
+                    ANewVar(
                         "matrix_t<type_t>", "B"),
                     EFunc("",
                           [AJust(EField("A", "cols")), AJust(EVar("n"))])))
             else:  # SpGEMM, create a sparse matrix B identical to A
                 # TODO: Confirm this works in Loops
                 body.add(
-                    SAssignObj_C(
-                        AVar_C(
+                    SAssignObj(
+                        ANewVar(
                             "csr_t<index_t, offset_t, type_t>", "B"),
                         EParens(EMethod(
                                 EVar("mtx"), "load", [
                                     AJust(
                                         EField("parameters", "filename"))]))))
 
-            body.add(SAssignObj_C(
-                AVar_C(
+            body.add(SAssignObj(
+                ANewVar(
                     "matrix_t<type_t>", "Z"),
                 EFunc("",
                       [AJust(EField("A", "rows")), AJust(EVar("n"))])))
-            body.add(SDecl_C(DDefn("")))  # Adding an empty line
+            body.add(SDecl(DDefn("")))  # Adding an empty line
 
             # Initialize matrix B
             if self.problem_type == "SpMM":
                 body.add(
-                    SExpr_C(
+                    SExpr(
                         EFunc(
                             "generate::random::uniform_distribution",
                             [AJust(
@@ -406,19 +370,19 @@ class GPULoops:
                                 EVar(str(1))),
                              AJust(
                                 EVar(str(self.N)))])))
-                body.add(SDecl_C(DDefn("")))  # Adding an empty line
+                body.add(SDecl(DDefn("")))  # Adding an empty line
 
         # Step 5: Create tiles
-        body.add(SDecl_C(DDefn("//TODO: Implement a tile pointer generator")))
-        body.add(SDecl_C(DDefn("")))  # Adding an empty line
+        body.add(SDecl(DDefn("//TODO: Implement a tile pointer generator")))
+        body.add(SDecl(DDefn("")))  # Adding an empty line
 
         # Step 6: Create a scheduler (only thread_mapped)
         if self.scheduler.get_scheduler() == "thread_mapped":
             body.add(
-                SAssignTypename_C(AVar("setup_t"),
-                                  EVar(self.scheduler.construct_expr(1, 1))))
-            body.add(SAssignObj_C(
-                AVar_C(
+                SAssignTypename(AVar("setup_t"),
+                                EVar(self.scheduler.construct_expr(1, 1))))
+            body.add(SAssignObj(
+                ANewVar(
                     "setup_t", "config"),
                 EFunc("",
                       [AJust(
@@ -427,30 +391,30 @@ class GPULoops:
                               "get", [])),
                        AJust(EField("A", "rows")),
                        AJust(EField("A", "nnz"))])))
-            body.add(SDecl_C(DDefn("")))  # Adding an empty line
+            body.add(SDecl(DDefn("")))  # Adding an empty line
 
         # Step 7: Define GPU kernel launch parameters
-        body.add(SAssign_C(AVar_C("std::size_t", "block_size", "constexpr"),
-                           EVar(self.block_size)))
-        body.add(SAssign_C(AVar_C("std::size_t", "grid_size"),
-                           EVar(self.grid_size)))
-        body.add(SAssign_C(AVar_C("cudaStream_t", "stream"),
-                           EVar("0")))
-        body.add(SDecl_C(DDefn("")))  # Adding an empty line
+        body.add(SAssign(ANewVar("std::size_t", "block_size", "constexpr"),
+                         EVar(self.block_size)))
+        body.add(SAssign(ANewVar("std::size_t", "grid_size"),
+                         EVar(self.grid_size)))
+        body.add(SAssign(ANewVar("cudaStream_t", "stream"),
+                         EVar("0")))
+        body.add(SDecl(DDefn("")))  # Adding an empty line
 
         # Step 8: Start timer
         body.add(
-            SAssignEmpty_C(
-                AVar_C("util::timer_t", "timer")))
-        body.add(SExpr_C(EMethod(EVar("timer"), "start", [])))
-        body.add(SDecl_C(DDefn("")))  # Adding an empty line
+            SAssignEmpty(
+                ANewVar("util::timer_t", "timer")))
+        body.add(SExpr(EMethod(EVar("timer"), "start", [])))
+        body.add(SDecl(DDefn("")))  # Adding an empty line
 
         # Step 9: Execute GPU kernel
         kernel_name = "gpuloops_" + self.scheduler.get_scheduler()
         kernel_template = "<" + \
             (", ".join(t for t in list(self.typenames))) + ">"
         body.add(
-            SExpr_C(
+            SExpr(
                 EFunc("launch::non_cooperative",
                       [AJust(EVar("stream")),
                        AJust(EVar(kernel_name + kernel_template)),
@@ -467,33 +431,31 @@ class GPULoops:
                                      "get", [])),
                        AJust(EMethod(EMethod(EVar("Z"), "data", []),
                                      "get", []))])))
-        body.add(SDecl_C(DDefn("")))  # Adding an empty line
+        body.add(SDecl(DDefn("")))  # Adding an empty line
 
         # Step 10: Synchronization and End timer
         body.add(
-            SExpr_C(
+            SExpr(
                 EFunc("cudaStreamSynchronize",
                       [AJust(EVar("stream"))])))
-        body.add(SExpr_C(EMethod(EVar("timer"), "stop", [])))
-        body.add(SDecl_C(DDefn("")))  # Adding an empty line
+        body.add(SExpr(EMethod(EVar("timer"), "stop", [])))
+        body.add(SDecl(DDefn("")))  # Adding an empty line
 
         # Step 11: Validation
-        body.add(SDecl_C(DDefn("//TODO: Add a general validation")))
-        body.add(SDecl_C(DDefn("")))  # Adding an empty line
+        body.add(SDecl(DDefn("//TODO: Add a general validation")))
+        body.add(SDecl(DDefn("")))  # Adding an empty line
 
         # Step 12: Print output
-        body.add(SPrint_C([f"\"{self.file_names["loops_fname"]},\"",
-                           "mtx.dataset", "\",\"", "A.rows", "\",\"",
-                           "A.cols", "\",\"", "A.nnz", "\",\"",
-                           "timer.milliseconds()"]))
+        body.add(SPrint([f"\"{self.problem_type},\"",
+                         "mtx.dataset", "\",\"", "A.rows", "\",\"",
+                         "A.cols", "\",\"", "A.nnz", "\",\"",
+                         "timer.milliseconds()"]))
 
         return body
 
-    def get_files(self) -> dict[str, str]:
+    def __str__(self) -> str:
         """
-        Return the string representation of this GPULoops program for both files
+        Return the string representation of this GPULoops program
         """
 
-        return {
-            "loops_fname": self.loops_file.gen(0),
-        }
+        return self.gpuloops.gen(0)

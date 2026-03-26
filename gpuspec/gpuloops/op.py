@@ -21,164 +21,115 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-HiFiber AST and code generation for HiFiber operators
+GPULoops AST and code generation for operators in C/C++
 """
-
 
 from gpuspec.gpuloops.base import Operator
 
 
 class OAdd(Operator):
     """
-    The HiFiber addition operator
+    The GPULoops addition operator
     """
 
     def gen(self) -> str:
         """
-        Generate the HiFiber code for the OAdd operator
+        Generate the C/C++ code for the OAdd operator
         """
         return "+"
 
 
 class OAnd(Operator):
     """
-    The HiFiber and operator
+    The GPULoops and operator
     """
 
     def gen(self) -> str:
         """
-        Generate the HiFiber code for the OAnd operator
+        Generate the C/C++ code for the OAnd operator
         """
         return "&"
 
 
 class ODiv(Operator):
     """
-    The HiFiber divide operator
+    The GPULoops divide operator
     """
 
     def gen(self) -> str:
         """
-        Generate the HiFiber code for the ODiv operator
+        Generate the C/C++ code for the ODiv operator
         """
         return "/"
 
 
 class OEqEq(Operator):
     """
-    The HiFiber equal-equal operator
+    The GPULoops equal-equal operator
     """
 
     def gen(self) -> str:
         """
-        Generate the HiFiber code for the OEqEq operator
+        Generate the C/C++ code for the OEqEq operator
         """
         return "=="
 
 
-class OFDiv(Operator):
-    """
-    The HiFiber floor divide operator
-    """
-
-    def gen(self) -> str:
-        """
-        Generate the HiFiber code for the OFDiv operator
-        """
-        return "//"
-
-
-class OIn(Operator):
-    """
-    The HiFiber in operator
-    """
-
-    def gen(self) -> str:
-        """
-        Generate the HiFiber code for the OIn operator
-        """
-        return "in"
-
-
 class OLt(Operator):
     """
-    The HiFiber less-than less-than operator
+    The GPULoops less-than less-than operator
     """
 
     def gen(self) -> str:
         """
-        Generate the HiFiber code for the OLt operator
+        Generate the C/C++ code for the OLt operator
         """
         return "<"
 
 
-class OLtLt(Operator):
-    """
-    The HiFiber less-than less-than operator
-    """
-
-    def gen(self) -> str:
-        """
-        Generate the HiFiber code for the OLtLt operator
-        """
-        return "<<"
-
-
 class OMod(Operator):
     """
-    The HiFiber modulo operator
+    The GPULoops modulo operator
     """
 
     def gen(self) -> str:
         """
-        Generate the HiFiber code for the OMod operator
+        Generate the C/C++ code for the OMod operator
         """
         return "%"
 
 
 class OMul(Operator):
     """
-    The HiFiber multiplication operator
+    The GPULoops multiplication operator
     """
 
     def gen(self) -> str:
         """
-        Generate the HiFiber code for the OMul operator
+        Generate the C/C++ code for the OMul operator
         """
         return "*"
 
 
-class ONotIn(Operator):
-    """
-    The HiFiber not in operator
-    """
-
-    def gen(self) -> str:
-        """
-        Generate the HiFiber code for the ONotIn operator
-        """
-        return "not in"
-
-
 class OOr(Operator):
     """
-    The HiFiber or operator
+    The GPULoops or operator
     """
 
     def gen(self) -> str:
         """
-        Generate the HiFiber code for the OOr operator
+        Generate the C/C++ code for the OOr operator
         """
         return "|"
 
 
 class OSub(Operator):
     """
-    The HiFiber subtract operator
+    The GPULoops subtract operator
     """
 
     def gen(self) -> str:
         """
-        Generate the HiFiber code for the OSub operator
+        Generate the C/C++ code for the OSub operator
         """
         return "-"

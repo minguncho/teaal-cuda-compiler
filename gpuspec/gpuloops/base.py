@@ -21,7 +21,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-HiFiber AST base classes
+GPULoops AST base classes
 """
 
 import abc
@@ -32,7 +32,7 @@ from typing import Any, Dict
 class Base():
     def __eq__(self, other: object) -> bool:
         """
-        The == operator for HiFiber code
+        The == operator for GPULoops code
 
         """
         if isinstance(other, type(self)):
@@ -70,7 +70,7 @@ class Argument(Base, metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def gen(self) -> str:
         """
-        Generate the HiFiber code for this Argument
+        Generate the GPULoops code for this Argument
         """
         raise NotImplementedError  # pragma: no cover
 
@@ -83,7 +83,7 @@ class Assignable(Base, metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def gen(self) -> str:
         """
-        Generate the HiFiber code for this Assignable
+        Generate the GPULoops code for this Assignable
         """
         raise NotImplementedError  # pragma: no cover
 
@@ -96,7 +96,7 @@ class Expression(Base, metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def gen(self) -> str:
         """
-        Generate the HiFiber code for this Expression
+        Generate the GPULoops code for this Expression
         """
         raise NotImplementedError  # pragma: no cover
 
@@ -109,7 +109,7 @@ class Operator(Base, metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def gen(self) -> str:
         """
-        Generate the HiFiber code for this Operator
+        Generate the GPULoops code for this Operator
         """
         raise NotImplementedError  # pragma: no cover
 
@@ -122,7 +122,7 @@ class Payload(Base, metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def gen(self, parens: bool) -> str:
         """
-        Generate the HiFiber code for this Payload
+        Generate the GPULoops code for this Payload
         """
         raise NotImplementedError  # pragma: no cover
 
@@ -135,7 +135,7 @@ class Statement(Base, metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def gen(self, depth: int) -> str:
         """
-        Generate the HiFiber code for this Statement
+        Generate the GPULoops code for this Statement
         """
         raise NotImplementedError  # pragma: no cover
 
@@ -148,6 +148,6 @@ class Declaration(Base, metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def gen(self) -> str:
         """
-        Generate the HiFiber code for this Declaration
+        Generate the GPULoops code for this Declaration
         """
         raise NotImplementedError  # pragma: no cover

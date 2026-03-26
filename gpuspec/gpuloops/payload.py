@@ -21,7 +21,8 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-HiFiber AST and code generation for HiFiber payloads (the output of iterating over fibers)
+HiFiber AST and code generation for payloads (the output of iterating over fibers)
+    in C/C++
 """
 
 from typing import List
@@ -29,37 +30,17 @@ from typing import List
 from gpuspec.gpuloops.base import Payload
 
 
-class PTuple(Payload):
-    """
-    A tuple of payloads
-    """
-
-    def __init__(self, payloads: List[Payload]) -> None:
-        self.payloads = payloads
-
-    def gen(self, parens: bool) -> str:
-        """
-        Generate the HiFiber output for an SBlock
-        """
-        payload = ", ".join([p.gen(True) for p in self.payloads])
-        if parens:
-            return "(" + payload + ")"
-        return payload
-
-
 class PVar(Payload):
     """
     A single variable payload
     """
 
-    def __init__(self, var: str) -> None:
-        self.var = var
+    def __init__(self, var_type: str, name: str) -> None:
+        self.var_type = var_type
+        self.name = name
 
     def gen(self, parens: bool) -> str:
         """
-        Generate the HiFiber output for an SBlock
-
-        Note: the parens argument has no impact on PVar because it is already
-        an atomic element
+        Generate the C/C++ output for a PVar
         """
-        return self.var
+        return f"{self.var_type} {self.name}"

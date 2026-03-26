@@ -21,8 +21,10 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-HiFiber AST and code generation for expressions that can be assigned to
+GPULoops AST and code generation for assignable expressions in C/C++
 """
+
+from typing import Optional
 
 from gpuspec.gpuloops.base import Assignable, Expression
 
@@ -38,14 +40,14 @@ class AAccess(Assignable):
 
     def gen(self) -> str:
         """
-        Generate the HiFiber code for an AAccess
+        Generate the C/C++ code for an AAccess
         """
         return self.obj.gen() + "[" + self.ind.gen() + "]"
 
 
 class AField(Assignable):
     """
-    An HiFiber object field access
+    An GPULoops object field access
     """
 
     def __init__(self, obj: str, field: str):
@@ -54,21 +56,41 @@ class AField(Assignable):
 
     def gen(self) -> str:
         """
-        Generate the HiFiber code for an AField
+        Generate the C/C++ code for an AField
         """
         return self.obj + "." + self.field
 
 
-class AVar(Assignable):
+class ANewVar(Assignable):
     """
-    An HiFiber variable
+    A new GPULoops variable (C/C++)
     """
 
-    def __init__(self, name: str) -> None:
+    def __init__(self, var_type: str, name: str,
+                 const: Optional[str] = None) -> None:
+        self.var_type = var_type
+        self.name = name
+        self.const = const
+
+    def gen(self) -> str:
+        """
+        Generate the C/C++ code for an ANewVar
+        """
+        c = f"{self.const} " if self.const else ""
+        return f"{c}{self.var_type} {self.name}"
+
+
+class AVar(Assignable):
+    """
+    A pre-defined GPULoops variable (C/C++)
+    """
+
+    def __init__(self, name: str,
+                 const: Optional[str] = None) -> None:
         self.name = name
 
     def gen(self) -> str:
         """
-        Generate the HiFiber code for an AVar
+        Generate the C/C++ code for an AVar_
         """
         return self.name

@@ -21,8 +21,10 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-HiFiber AST and code generation for HiFiber expressions
+GPULoops AST and code generation for expressions in C/C++
 """
+
+import numpy as np
 
 from typing import Dict, Sequence
 
@@ -40,14 +42,14 @@ class EAccess(Expression):
 
     def gen(self) -> str:
         """
-        Generate the HiFiber code for an EAccess
+        Generate the C/C++ code for an EAccess
         """
         return self.obj.gen() + "[" + self.ind.gen() + "]"
 
 
 class EBinOp(Expression):
     """
-    An HiFiber binary operation
+    An GPULoops binary operation
     """
 
     def __init__(
@@ -61,14 +63,14 @@ class EBinOp(Expression):
 
     def gen(self) -> str:
         """
-        Generate the HiFiber code for an EBinOp
+        Generate the C/C++ code for an EBinOp
         """
         return self.expr1.gen() + " " + self.op.gen() + " " + self.expr2.gen()
 
 
 class EBool(Expression):
     """
-    An HiFiber boolean variable
+    An GPULoops boolean variable
     """
 
     def __init__(self, bool_: bool) -> None:
@@ -76,50 +78,14 @@ class EBool(Expression):
 
     def gen(self) -> str:
         """
-        Generate the HiFiber code for an EBool
+        Generate the C/C++ code for an EBool
         """
         return str(self.bool)
 
 
-class EComp(Expression):
-    """
-    An HiFiber list comprehension
-    """
-
-    def __init__(self, elem: Expression, var: str, iter_: Expression) -> None:
-        self.elem = elem
-        self.var = var
-        self.iter = iter_
-
-    def gen(self) -> str:
-        """
-        Generate the HiFiber code for an EComp
-        """
-        return "[" + self.elem.gen() + " for " + self.var + \
-            " in " + self.iter.gen() + "]"
-
-
-class EDict(Expression):
-    """
-    An HiFiber dictionary
-    """
-
-    def __init__(self, dict_: Dict[Expression, Expression]):
-        self.dict = dict_
-
-    def gen(self) -> str:
-        """
-        Generate the HiFiber code for an EDict
-        """
-        items = []
-        for key, val in self.dict.items():
-            items.append(key.gen() + ": " + val.gen())
-        return "{" + ", ".join(items) + "}"
-
-
 class EField(Expression):
     """
-    An HiFiber object field access
+    An GPULoops object field access
     """
 
     def __init__(self, obj: str, field: str):
@@ -128,34 +94,48 @@ class EField(Expression):
 
     def gen(self) -> str:
         """
-        Generate the HiFiber code for an EField
+        Generate the C/C++ code for an EField
         """
         return self.obj + "." + self.field
 
 
 class EFloat(Expression):
     """
-    An HiFiber float
+    An GPULoops float (32-bit)
+
+    #TODO: Implement this
     """
 
-    def __init__(self, float_: float) -> None:
+    def __init__(self, float_: np.float32) -> None:
         self.float = float_
 
     def gen(self) -> str:
         """
-        Generate HiFiber code for an EFloat
+        Generate C/C++ code for an EFloat
         """
-        if self.float == float("inf"):
-            return "float(\"inf\")"
-        elif self.float == -float("inf"):
-            return "-float(\"inf\")"
-        else:
-            return str(self.float)
+        return str(self.float)
+
+
+class EDouble(Expression):
+    """
+    An GPULoops double (64-bit)
+
+    #TODO: Implement this
+    """
+
+    def __init__(self, double_: np.float64) -> None:
+        self.double = double_
+
+    def gen(self) -> str:
+        """
+        Generate C/C++ code for an EDouble
+        """
+        return str(self.double)
 
 
 class EFunc(Expression):
     """
-    An HiFiber function call
+    An GPULoops function call
     """
 
     def __init__(self, name: str, args: Sequence[Argument]) -> None:
@@ -164,7 +144,7 @@ class EFunc(Expression):
 
     def gen(self) -> str:
         """
-        Generate the HiFiber code for an EFunc
+        Generate the C/C++ code for an EFunc
         """
         return self.name + \
             "(" + ", ".join([a.gen() for a in self.args]) + ")"
@@ -172,7 +152,7 @@ class EFunc(Expression):
 
 class EInt(Expression):
     """
-    An HiFiber integer
+    An GPULoops integer
     """
 
     def __init__(self, int_: int) -> None:
@@ -180,45 +160,44 @@ class EInt(Expression):
 
     def gen(self) -> str:
         """
-        Generate HiFiber code for an EInt
+        Generate C/C++ code for an EInt
         """
         return str(self.int)
 
 
-class ELambda(Expression):
+class EVector(Expression):
     """
-    An HiFiber lambda
+    An GPULoops Vector
     """
 
-    def __init__(self, args: Sequence[str], body: Expression) -> None:
-        self.args = args
-        self.body = body
+    def __init__(self, vector_: Sequence[Expression]) -> None:
+        self.vector = vector_
 
     def gen(self) -> str:
         """
-        Generate HiFiber code for an ELambda
+        Generate the C/C++ code for an EVector
         """
-        return "lambda " + ", ".join(self.args) + ": " + self.body.gen()
+        return "[" + ", ".join([e.gen() for e in self.vector]) + "]"
 
 
-class EList(Expression):
+class EArray(Expression):
     """
-    An HiFiber list
+    An GPULoops Array
     """
 
-    def __init__(self, list_: Sequence[Expression]) -> None:
-        self.list = list_
+    def __init__(self, array_: Sequence[Expression]) -> None:
+        self.array = array_
 
     def gen(self) -> str:
         """
-        Generate the HiFiber code for an EList
+        Generate the C/C++ code for an EArray
         """
-        return "[" + ", ".join([e.gen() for e in self.list]) + "]"
+        return "[" + ", ".join([e.gen() for e in self.array]) + "]"
 
 
 class EMethod(Expression):
     """
-    An HiFiber method call
+    An GPULoops method call
     """
 
     def __init__(self, obj: Expression, name: str,
@@ -229,7 +208,7 @@ class EMethod(Expression):
 
     def gen(self) -> str:
         """
-        Generate the HiFiber code for an EMethod
+        Generate the C/C++ code for an EMethod
         """
         return self.obj.gen() + "." + self.name + \
             "(" + ", ".join([a.gen() for a in self.args]) + ")"
@@ -237,7 +216,7 @@ class EMethod(Expression):
 
 class EParens(Expression):
     """
-    An HiFiber expression surrounded by parentheses
+    An GPULoops expression surrounded by parentheses
     """
 
     def __init__(self, expr: Expression) -> None:
@@ -245,14 +224,14 @@ class EParens(Expression):
 
     def gen(self) -> str:
         """
-        Generate the HiFiber code for an EParens
+        Generate the C/C++ code for an EParens
         """
         return "(" + self.expr.gen() + ")"
 
 
 class EString(Expression):
     """
-    A string in HiFiber
+    A string in GPULoops
     """
 
     def __init__(self, string: str) -> None:
@@ -260,34 +239,14 @@ class EString(Expression):
 
     def gen(self) -> str:
         """
-        Generate the HiFiber code for an EString
+        Generate the C/C++ code for an EString
         """
         return "\"" + self.string + "\""
 
 
-class ETuple(Expression):
-    """
-    A tuple in HiFiber
-    """
-
-    def __init__(self, elems: Sequence[Expression]) -> None:
-        self.elems = elems
-
-    def gen(self) -> str:
-        """
-        Generate the HiFiber code for this tuple
-        """
-        # A single element tuple in Python needs an extra trailing comma
-        if len(self.elems) == 1:
-            return "(" + self.elems[0].gen() + ",)"
-
-        else:
-            return "(" + ", ".join([elem.gen() for elem in self.elems]) + ")"
-
-
 class EVar(Expression):
     """
-    An HiFiber variable
+    An GPULoops variable
     """
 
     def __init__(self, name: str) -> None:
@@ -295,6 +254,6 @@ class EVar(Expression):
 
     def gen(self) -> str:
         """
-        Generate the HiFiber code for an EVar
+        Generate the C/C++ code for an EVar
         """
         return self.name
