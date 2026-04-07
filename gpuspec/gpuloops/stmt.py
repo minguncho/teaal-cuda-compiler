@@ -197,6 +197,41 @@ class SFunc(Statement):
             self.name + "(" + args_str + ") {\n" + self.body.gen(depth + 1) + "\n}\n"
 
 
+class SIf(Statement):
+    """
+    An if statement
+    """
+
+    def __init__(self,
+                 if_: Tuple[Expression,
+                            Statement],
+                 elseifs: List[Tuple[Expression,
+                                     Statement]],
+                 else_: Optional[Statement]) -> None:
+        self.if_ = if_
+        self.elseifs = elseifs
+        self.else_ = else_
+
+    def gen(self, depth: int) -> str:
+        """
+        Generate the C/C++ output for an SIf
+        """
+        out = "    " * depth
+        out += "if (" + self.if_[0].gen() + ") {\n" + \
+            self.if_[1].gen(depth + 1) + "\n}\n"
+
+        for cond, stmt in self.elseifs:
+            out += "    " * depth
+            out += "else if (" + cond.gen() + ") {\n" + \
+                stmt.gen(depth + 1) + "\n}\n"
+
+        if self.else_ is not None:
+            out += "    " * depth
+            out += "else {\n" + self.else_.gen(depth + 1) + "\n}\n"
+
+        return out
+
+
 class SNewEmptyLine(Statement):
     """
     A new empty line statement

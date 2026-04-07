@@ -55,40 +55,21 @@ def test_compile():
     mapping = Mapping.from_str(loops_yaml)
     scheduler = Scheduler.from_str(loops_yaml)
 
-    output_file = "./outputs/output.cu"
+    output_file = "./outputs/" + scheduler.get_scheduler() \
+        + "_edge.cu"
     problem_type = "SpMV"  # SpMV, SpMM, SpGEMM
     N = 10  # Size of rank N
+    tracker_enabled = True
 
     '''print("Work atom: ", mapping.get_work_atom())
     print("Work unit: ", mapping.get_work_unit())
     print("Work tile: ", mapping.get_work_tile())'''
 
     gpuloops = GPULoops(einsum, mapping, scheduler,
-                        problem_type, N)
+                        problem_type, N, tracker_enabled)
 
     with open(output_file, "w") as f:
         f.write(str(gpuloops))
     subprocess.run(["clang-format", "-i", output_file])
 
     assert (1)
-
-
-"""Notes:
-
-    Suppose solving SpMV, so ranks are [M, K]
-
-    Option for work_atom:
-    1. [M, K]
-
-    Options for work_unit:
-    1. [M] --> Each work unit is a row of A.
-    2. [K] --> Each work unit is a column of A.
-    3. [M, K] --> Each work unit is a NZ of A.
-    4. M: uniform_shape(M0) --> Each work unit is a M0 number of rows of A.
-    5. K: uniform_shape(K0) --> Each work unit is a K0 number of columns of A.
-    6. M: uniform_shape(M0), K: uniform_shape(K0) --> Each work unit is a M0 number of rows and K0 number of columns of A (static tile).
-    7. (M, K): [flatten()], MK: uniform_occupancy(MK0) --> Each work unit is MK0 number of entries of A (dynamic tile, DRT).
-
-    Options for work_tile:
-    1. [M]
-"""

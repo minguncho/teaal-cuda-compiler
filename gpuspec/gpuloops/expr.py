@@ -26,7 +26,7 @@ GPULoops AST and code generation for expressions in C/C++
 
 import numpy as np
 
-from typing import Dict, Sequence
+from typing import Dict, Sequence, Optional
 
 from gpuspec.gpuloops.base import Argument, Expression, Operator
 
@@ -45,6 +45,22 @@ class EAccess(Expression):
         Generate the C/C++ code for an EAccess
         """
         return self.obj.gen() + "[" + self.ind.gen() + "]"
+
+
+class EPointerAccess(Expression):
+    """
+    An access into a pointer
+    """
+
+    def __init__(self, obj: Expression, access: Expression) -> None:
+        self.obj = obj
+        self.access = access
+
+    def gen(self) -> str:
+        """
+        Generate the C/C++ code for an EPointerAccess
+        """
+        return self.obj.gen() + "->" + self.access.gen()
 
 
 class EBinOp(Expression):
@@ -212,6 +228,59 @@ class EMethod(Expression):
         """
         return self.obj.gen() + "." + self.name + \
             "(" + ", ".join([a.gen() for a in self.args]) + ")"
+
+
+class EAdd(Expression):
+    """
+    An GPULoops add call
+    """
+
+    def __init__(self, expr1: Expression, expr2: Expression) -> None:
+        self.expr1 = expr1
+        self.expr2 = expr2
+
+    def gen(self) -> str:
+        """
+        Generate the C/C++ code for an EAdd
+        """
+        return self.expr1.gen() + " + " + self.expr2.gen()
+
+
+class EMult(Expression):
+    """
+    An GPULoops multiply call
+    """
+
+    def __init__(self, expr1: Expression, expr2: Expression,
+                 add_parens: Optional[bool] = False) -> None:
+        self.expr1 = expr1
+        self.expr2 = expr2
+        self.add_parens = add_parens
+
+    def gen(self) -> str:
+        """
+        Generate the C/C++ code for an EMult
+        """
+        if self.add_parens:
+            return "(" + self.expr1.gen() + " * " + self.expr2.gen() + ")"
+        else:
+            return self.expr1.gen() + " * " + self.expr2.gen()
+
+
+class EEqual(Expression):
+    """
+    An GPULoops equal call
+    """
+
+    def __init__(self, expr1: Expression, expr2: Expression) -> None:
+        self.expr1 = expr1
+        self.expr2 = expr2
+
+    def gen(self) -> str:
+        """
+        Generate the C/C++ code for an EAdd
+        """
+        return self.expr1.gen() + " == " + self.expr2.gen()
 
 
 class EParens(Expression):

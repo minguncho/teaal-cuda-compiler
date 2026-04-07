@@ -28,6 +28,7 @@ class GPULoops:
             scheduler: Scheduler,
             problem_type: str,
             N: int,
+            tracker_enabled: Optional[bool] = False,
             block_size: Optional[str] = None,
             grid_size: Optional[str] = None) -> None:
         """
@@ -38,6 +39,7 @@ class GPULoops:
         self.scheduler = scheduler
         self.problem_type = problem_type
         self.N = N
+        self.tracker_enabled = tracker_enabled
 
         # Check for length of einsum expressions
         if len(einsum.get_expressions()) != 1:
@@ -49,23 +51,34 @@ class GPULoops:
             "setup_t": None,
             "index_t": "int",
             "offset_t": "int",
-            "type_t": "float"
+            "type_t": "float",
+            "quarks_t": "std::size_t"
         }
+        self.gpu_typenames = ["setup_t", "index_t", "type_t"]
 
         # Default kernel parameters
         self.block_size = "128"
-        self.grid_size = "(A.rows + block_size - 1) / block_size"
+        self.grid_size = "(partitioner.get_num_tiles() + block_size - 1) / block_size"
+        self.kernel_name = self.scheduler.get_scheduler() + "_edge"
 
         if block_size:
             self.block_size = block_size
         if grid_size:
             self.grid_size = grid_size
 
-        self.gpuloops = self.__generate_loops_file()
+        # TODO: Add implementation for this instead of hard coding
+        self.static_atoms = self.static_tiles = True
+        self.atoms_M0 = "1"
+        self.atoms_K0 = "1"
+        self.tiles_M0 = "1"
+        self.tiles_K0 = "A.cols"
+        self.atoms_nnz = self.tiles_num_atoms = "1"
 
-    def __generate_loops_file(self) -> Statement:
+        self.gpuloops = self.__generate_gpuloops()
+
+    def __generate_gpuloops(self) -> Statement:
         """
-        Add statements for main loops file
+        Main framework for loops file
         """
 
         stmts = SBlock([])
@@ -81,12 +94,14 @@ class GPULoops:
         # Step 2: Add preprocessor directives (#include, #define, etc)
         pragmas: list[str] = []
         includes = ["\"helpers.hxx\"",
-                    "<loops/schedule.hxx>",
                     "<loops/container/formats.hxx>",
                     "<loops/container/vector.hxx>",
+                    "<loops/memory.hxx>",
+                    "<loops/schedule_edge.hxx>",
                     "<loops/util/launch.hxx>",
                     "<loops/util/device.hxx>",
-                    "<loops/memory.hxx>",
+                    "<loops/util/partitioner.hxx>",
+                    "<loops/util/tracker.hxx>",
                     "<iostream>"]
         macros: list[str] = []
 
@@ -163,10 +178,10 @@ class GPULoops:
         """
 
         # Define kernel definition
-        template_types = list(self.typenames)
+        template_types = self.gpu_typenames
         declarations = ["__global__"]
         return_type = "void"
-        fn_name = "gpuloops_" + self.scheduler.get_scheduler()
+        fn_name = self.kernel_name
 
         # Define kernel argumnets
         args = self.__construct_gpu_kernel_args()
@@ -193,6 +208,9 @@ class GPULoops:
         if self.scheduler.get_scheduler() == "thread_mapped":
             # Requird args
             args.append(AParam("setup_t", "config"))
+            args.append(AParam("index_t*", "row_indices", "const"))
+            args.append(AParam("index_t*", "col_indices", "const"))
+            args.append(AParam("type_t*", "values", "const"))
             args.append(AParam("type_t*", "B", "const"))
             args.append(AParam("type_t*", "Z"))
 
@@ -200,6 +218,9 @@ class GPULoops:
             pass
         else:  # work_oriented
             pass
+
+        if self.tracker_enabled:
+            args.append(AParam("size_t*", "nz_tid"))
 
         return args
 
@@ -210,30 +231,51 @@ class GPULoops:
         body = SBlock([])
 
         if self.scheduler.get_scheduler() == "thread_mapped":
-            # Construct the body for inner for-loop (traversing atoms)
-            inner_body = SBlock([])
-            inner_body.add(SDecl(DDefn("//TODO: Implement this\n")))
+            # Construct the body of traversing quarks for-loop
+            quark_body = SBlock([])
+            quark_body.add(SExpr(EFunc("atomicAdd",
+                                       [AJust(EFunc("&",
+                                              [AJust(EAccess(EVar("Z"),
+                                                             EAccess(EVar("row_indices"),
+                                                                     EVar("*quark"))))])),
+                                        AJust(EMult(EAccess(EVar("values"), EVar("*quark")),
+                                                    EAccess(EVar("B"),
+                                                            EAccess(EVar("col_indices"),
+                                                                    EVar("*quark")))))])))
 
-            # Construct the body for outer for-loop (traversing tiles)
-            outer_body = SBlock([])
-            outer_body.add(SAssign(ANewVar("type_t", "sum"), EVar("0")))
-            outer_body.add(SNewEmptyLine())  # Add an empty line
+            if self.tracker_enabled:
+                quark_body.add(SAssign(
+                    AAccess(EVar("nz_tid"), EVar("*quark")),
+                    EAdd(EMult(EVar("blockIdx.x"), EVar("blockDim.x"), True),
+                         EVar("threadIdx.x"))))
 
-            outer_body.add(SRangeFor(PVar("auto", "atom"),
-                                     EMethod(EVar("config"),
-                                             "atoms",
-                                             [AJust(EVar("tile"))]),
-                                     inner_body))
-            outer_body.add(SNewEmptyLine())  # Add an empty line
+            # Construct the body of traversing atoms for-loop
+            atom_body = SBlock([])
+            atom_body.add(SIf((EEqual(EPointerAccess(EVar("atom"),
+                                                     EFunc("get_num_quarks", [])),
+                                      EVar("0")),
+                              SExpr(EVar("continue"))), [], None))
+            atom_body.add(SNewEmptyLine())  # Add an empty line
 
-            outer_body.add(SAssign(AAccess(EVar("Z"), EVar("tile")),
-                                   EVar("sum")))
+            atom_body.add(SRangeFor(PVar("auto", "quark"),
+                                    EMethod(EVar("config"),
+                                            "quarks",
+                                            [AJust(EVar("atom"))]),
+                                    quark_body))
+
+            # Construct the body of traversing tiles for-loop
+            tile_body = SBlock([])
+            tile_body.add(SRangeFor(PVar("auto", "atom"),
+                                    EMethod(EVar("config"),
+                                            "atoms",
+                                            [AJust(EVar("tile_idx"))]),
+                                    atom_body))
 
             # Build the outer for-loop
-            body.add(SRangeFor(PVar("auto", "tile"),
+            body.add(SRangeFor(PVar("auto", "tile_idx"),
                                EMethod(EVar("config"),
                                        "tiles", []),
-                               outer_body))
+                               tile_body))
 
         elif self.scheduler.get_scheduler() == "group_mapped":
             pass
@@ -294,13 +336,17 @@ class GPULoops:
                 ANewVar("matrix_market_t<index_t, offset_t, type_t>",
                         "mtx")))
         body.add(
-            SAssignObj(
-                ANewVar(
-                    "csr_t<index_t, offset_t, type_t>", "A"), EParens(
-                    EMethod(
-                        EVar("mtx"), "load", [
-                            AJust(
-                                EField("parameters", "filename"))]))))
+            SAssign(
+                ANewVar("coo_t<index_t, type_t, memory_space_t::host>", "A"),
+                EMethod(
+                    EVar("mtx"), "load", [
+                        AJust(
+                            EField("parameters", "filename"))])))
+        body.add(SAssignObj(
+            ANewVar(
+                "coo_t<index_t, type_t>", "A_device"),
+            EFunc("", [AJust(EVar("A"))])))
+
         body.add(SNewEmptyLine())  # Adding a new empty line
 
         # Step 4: Based on problem type, create tensor B and Z
@@ -372,8 +418,36 @@ class GPULoops:
                                 EVar(str(self.N)))])))
                 body.add(SNewEmptyLine())  # Adding a new empty line
 
-        # Step 5: Create tiles
-        body.add(SDecl(DDefn("//TODO: Implement a tile pointer generator")))
+        # Step 5: Create a partitioner
+        body.add(SAssignObj(
+            ANewVar(
+                "Partitioner<index_t, type_t, quarks_t>", " partitioner"),
+            EFunc("", [AJust(EVar("A"))])))
+        if self.static_atoms:
+            body.add(SExpr(
+                EMethod(EVar("partitioner"),
+                        "partition_atoms_static",
+                        [AJust(EVar(self.atoms_M0)),
+                         AJust(EVar(self.atoms_K0))])))
+        else:
+            body.add(SExpr(
+                EMethod(EVar("partitioner"),
+                        "partition_atoms_dynamic",
+                        [AJust(EVar(self.atoms_nnz))])))
+
+        if self.static_tiles:
+            body.add(SExpr(
+                EMethod(EVar("partitioner"),
+                        "partition_tiles_static",
+                        [AJust(EVar(self.tiles_M0)),
+                         AJust(EVar(self.tiles_K0))])))
+        else:
+            body.add(SExpr(
+                EMethod(EVar("partitioner"),
+                        "partition_tiles_dynamic",
+                        [AJust(EVar(self.tiles_num_atoms))])))
+        body.add(SExpr(
+            EMethod(EVar("partitioner"), "prepare_gpu", [])))
         body.add(SNewEmptyLine())  # Adding a new empty line
 
         # Step 6: Create a scheduler (only thread_mapped)
@@ -385,12 +459,9 @@ class GPULoops:
                 ANewVar(
                     "setup_t", "config"),
                 EFunc("",
-                      [AJust(
-                          EMethod(EMethod(
-                              EField("A", "offsets"), "data", []),
-                              "get", [])),
-                       AJust(EField("A", "rows")),
-                       AJust(EField("A", "nnz"))])))
+                      [AJust(EMethod(EMethod(EMethod(EVar("partitioner"), "get_work_tiles", []),
+                                             "data", []), "get", [])),
+                       AJust(EMethod(EVar("partitioner"), "get_num_tiles", []))])))
             body.add(SNewEmptyLine())  # Adding a new empty line
 
         # Step 7: Define GPU kernel launch parameters
@@ -402,38 +473,64 @@ class GPULoops:
                          EVar("0")))
         body.add(SNewEmptyLine())  # Adding a new empty line
 
-        # Step 8: Start timer
+        # Step 8: Add a tracker if enabled
+        if self.tracker_enabled:
+            body.add(SAssignObj(
+                ANewVar(
+                    "Tracker", "tracker"),
+                EFunc("", [AJust(EField("A", "nnzs")),
+                           AJust(EMult(EVar("block_size"),
+                                       EVar("grid_size")))])))
+            body.add(SNewEmptyLine())  # Adding a new empty line
+
+        # Step 9: Start timer
         body.add(
             SAssignEmpty(
                 ANewVar("util::timer_t", "timer")))
         body.add(SExpr(EMethod(EVar("timer"), "start", [])))
         body.add(SNewEmptyLine())  # Adding a new empty line
 
-        # Step 9: Execute GPU kernel
-        kernel_name = "gpuloops_" + self.scheduler.get_scheduler()
+        # Step 10: Execute GPU kernel
         kernel_template = "<" + \
-            (", ".join(t for t in list(self.typenames))) + ">"
+            (", ".join(t for t in self.gpu_typenames)) + ">"
+        launch_args = [
+            AJust(EVar("stream")),
+            AJust(EVar(self.kernel_name + kernel_template)),
+            AJust(EVar("grid_size")), AJust(EVar("block_size")),
+            AJust(EVar("config")),
+            AJust(EMethod(EMethod(EField("A_device", "row_indices"),
+                                  "data", []), "get", [])),
+            AJust(EMethod(EMethod(EField("A_device", "col_indices"),
+                                  "data", []), "get", [])),
+            AJust(EMethod(EMethod(EField("A_device", "values"),
+                                  "data", []), "get", [])),
+            AJust(EMethod(EMethod(EVar("B"), "data", []),
+                          "get", [])),
+            AJust(EMethod(EMethod(EVar("Z"), "data", []),
+                          "get", []))
+        ]
+
+        if self.tracker_enabled:
+            launch_args.append(
+                AJust(
+                    EMethod(
+                        EMethod(
+                            EMethod(
+                                EVar("tracker"),
+                                "get_nz_tid",
+                                []),
+                            "data",
+                            []),
+                        "get",
+                        [])))
+
         body.add(
             SExpr(
-                EFunc("launch::non_cooperative",
-                      [AJust(EVar("stream")),
-                       AJust(EVar(kernel_name + kernel_template)),
-                       AJust(EVar("grid_size")), AJust(EVar("block_size")),
-                       AJust(EVar("config")), AJust(EField("A", "rows")),
-                       AJust(EField("A", "cols")), AJust(EField("A", "nnz")),
-                       AJust(EMethod(EMethod(EField("A", "offsets"), "data", []),
-                                     "get", [])),
-                       AJust(EMethod(EMethod(EField("A", "indices"), "data", []),
-                                     "get", [])),
-                       AJust(EMethod(EMethod(EField("A", "values"), "data", []),
-                                     "get", [])),
-                       AJust(EMethod(EMethod(EVar("B"), "data", []),
-                                     "get", [])),
-                       AJust(EMethod(EMethod(EVar("Z"), "data", []),
-                                     "get", []))])))
+                EFunc("launch::non_cooperative", launch_args)))
+
         body.add(SNewEmptyLine())  # Adding a new empty line
 
-        # Step 10: Synchronization and End timer
+        # Step 11: Synchronization and End timer
         body.add(
             SExpr(
                 EFunc("cudaStreamSynchronize",
@@ -441,16 +538,38 @@ class GPULoops:
         body.add(SExpr(EMethod(EVar("timer"), "stop", [])))
         body.add(SNewEmptyLine())  # Adding a new empty line
 
-        # Step 11: Validation
-        body.add(SDecl(DDefn("//TODO: Add a general validation")))
+        # Step 12: Validation
+        check_body = SBlock([])
+        check_body.add(SAssignObj(
+            ANewVar(
+                "csr_t<index_t, offset_t, type_t>", "A_csr"),
+            EFunc("", [AJust(EVar("A"))])))
+        check_body.add(SExpr(EFunc("cpu::validate",
+                                   [AJust(EVar("parameters")),
+                                    AJust(EVar("A_csr")),
+                                    AJust(EVar("B")),
+                                    AJust(EVar("Z"))])))
+        body.add(SIf((EField("parameters", "validate"), check_body), [], None))
         body.add(SNewEmptyLine())  # Adding a new empty line
 
-        # Step 12: Print output
+        # Step 13: Print output
         body.add(SPrint([f"\"{self.problem_type},\"",
-                         f"\"{self.scheduler.get_scheduler()}\"",
+                         f"\"{self.scheduler.get_scheduler() + "_edge"}\"",
                          "mtx.dataset", "\",\"", "A.rows", "\",\"",
-                         "A.cols", "\",\"", "A.nnz", "\",\"",
+                         "A.cols", "\",\"", "A.nnzs", "\",\"",
                          "timer.milliseconds()"]))
+        body.add(SNewEmptyLine())  # Adding a new empty line
+
+        # Step 14: Add a tracker's generate output if enabled
+        if self.tracker_enabled:
+            body.add(
+                SExpr(
+                    EMethod(
+                        EVar("tracker"), "generate_output", [
+                            AJust(
+                                EString(
+                                    self.scheduler.get_scheduler() + "_edge"))])))
+            body.add(SNewEmptyLine())  # Adding a new empty line
 
         return body
 

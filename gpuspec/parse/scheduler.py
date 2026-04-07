@@ -73,9 +73,9 @@ class Scheduler:
         expr = ""
         if self.scheduler == "thread_mapped":
             expr = (
-                "schedule::setup<schedule::algorithms_t::thread_mapped, "
-                f"{str(threads_per_block)}, {str(threads_per_tile)}, "
-                "index_t, offset_t>")
+                "schedule_edge::setup<schedule_edge::algorithms_t::thread_mapped, " f"{
+                    str(threads_per_block)}, {
+                    str(threads_per_tile)}, " "WorkTile<quarks_t>>")
         elif self.scheduler == "group_mapped":
             # TODO: Implement this
             pass
