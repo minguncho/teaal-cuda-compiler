@@ -67,11 +67,11 @@ class GPULoops:
             self.grid_size = grid_size
 
         # TODO: Add implementation for this instead of hard coding
-        self.static_atoms = self.static_tiles = True
+        self.partition_method = "coordinate"
         self.atoms_M0 = "1"
         self.atoms_K0 = "1"
-        self.tiles_M0 = "1"
-        self.tiles_K0 = "A.cols"
+        self.tiles_M1 = "1"
+        self.tiles_K1 = "A.cols"
         self.atoms_nnz = self.tiles_num_atoms = "1"
 
         self.gpuloops = self.__generate_gpuloops()
@@ -423,29 +423,23 @@ class GPULoops:
             ANewVar(
                 "Partitioner<index_t, type_t, quarks_t>", " partitioner"),
             EFunc("", [AJust(EVar("A"))])))
-        if self.static_atoms:
+        if self.partition_method == "coordinate":
             body.add(SExpr(
                 EMethod(EVar("partitioner"),
-                        "partition_atoms_static",
+                        "partition_coordinate_space",
                         [AJust(EVar(self.atoms_M0)),
-                         AJust(EVar(self.atoms_K0))])))
-        else:
+                         AJust(EVar(self.atoms_K0)),
+                         AJust(EVar(self.tiles_M1)),
+                         AJust(EVar(self.tiles_K1))])))
+        elif self.partition_method == "position":
             body.add(SExpr(
                 EMethod(EVar("partitioner"),
                         "partition_atoms_dynamic",
-                        [AJust(EVar(self.atoms_nnz))])))
-
-        if self.static_tiles:
-            body.add(SExpr(
-                EMethod(EVar("partitioner"),
-                        "partition_tiles_static",
-                        [AJust(EVar(self.tiles_M0)),
-                         AJust(EVar(self.tiles_K0))])))
+                        [AJust(EVar(self.atoms_nnz)),
+                         AJust(EVar(self.tiles_num_atoms))])))
         else:
-            body.add(SExpr(
-                EMethod(EVar("partitioner"),
-                        "partition_tiles_dynamic",
-                        [AJust(EVar(self.tiles_num_atoms))])))
+            raise ValueError(
+                "Invalid partition method!, Must be 'coordinate' or 'position")
         body.add(SExpr(
             EMethod(EVar("partitioner"), "prepare_gpu", [])))
         body.add(SNewEmptyLine())  # Adding a new empty line
