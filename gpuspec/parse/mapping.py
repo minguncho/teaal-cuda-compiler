@@ -40,25 +40,25 @@ class Mapping:
         """
         Read the YAML input
         """
-        work_atom: List[str]
-        work_unit: List[str] | Dict[str, Dict[Tree, List[Tree]]]
+        work_quark: List[str]
+        work_atom: List[str] | Dict[str, Dict[Tree, List[Tree]]]
         work_tile: List[str] | Dict[str, Dict[Tree, List[Tree]]]
 
         if yaml is not None and "mapping" in yaml.keys() and \
                 yaml["mapping"] is not None:
             mapping = yaml["mapping"]
 
+            if "work_quark" in mapping.keys():
+                work_quark = mapping["work_quark"]
+
             if "work_atom" in mapping.keys():
-                work_atom = mapping["work_atom"]
+                if isinstance(mapping["work_atom"], list):
+                    work_atom = mapping["work_atom"]
+                elif isinstance(mapping["work_atom"], dict):
+                    work_atom = {}
 
-            if "work_unit" in mapping.keys():
-                if isinstance(mapping["work_unit"], list):
-                    work_unit = mapping["work_unit"]
-                elif isinstance(mapping["work_unit"], dict):
-                    work_unit = {}
-
-                    for tensor, ranks in mapping["work_unit"].items():
-                        work_unit[tensor] = {}
+                    for tensor, ranks in mapping["work_atom"].items():
+                        work_atom[tensor] = {}
 
                         if ranks is None:
                             continue
@@ -66,13 +66,13 @@ class Mapping:
                         for ranks_str, parts in ranks.items():
                             ranks_tree = PartitioningParser.parse_ranks(
                                 ranks_str)
-                            work_unit[tensor][ranks_tree] = []
+                            work_atom[tensor][ranks_tree] = []
                             for part in parts:
-                                work_unit[tensor][ranks_tree].append(
+                                work_atom[tensor][ranks_tree].append(
                                     PartitioningParser.parse_partitioning(part))
                 else:
                     raise KeyError(
-                        f"Invalid type of work_unit: '{mapping["work_unit"]}', "
+                        f"Invalid type of work_atom: '{mapping["work_atom"]}', "
                         "must be a \'list\' of ranks or a \'dict\' of rank and partitioning "
                         "mapping information")
 
@@ -102,15 +102,15 @@ class Mapping:
                         "must be a \'list\' of ranks or a \'dict\' of rank and partitioning "
                         "mapping information")
 
+        if work_quark is None:
+            raise KeyError(f"Undefined work_quark!")
+        else:
+            self.work_quark = work_quark
+
         if work_atom is None:
-            raise KeyError(f"Undefined work_atomt!")
+            raise KeyError(f"Undefined work_atom!")
         else:
             self.work_atom = work_atom
-
-        if work_unit is None:
-            raise KeyError(f"Undefined work_unit!")
-        else:
-            self.work_unit = work_unit
 
         if work_tile is None:
             raise KeyError(f"Undefined work_tile!")
@@ -131,17 +131,17 @@ class Mapping:
         """
         return cls(YamlParser.parse_str(string))
 
-    def get_work_atom(self) -> List[str]:
+    def get_work_quark(self) -> List[str]:
+        """
+        Get the work_quark information
+        """
+        return self.work_quark
+
+    def get_work_atom(self) -> List[str] | Dict[str, Dict[Tree, List[Tree]]]:
         """
         Get the work_atom information
         """
         return self.work_atom
-
-    def get_work_unit(self) -> List[str] | Dict[str, Dict[Tree, List[Tree]]]:
-        """
-        Get the work_unit information
-        """
-        return self.work_unit
 
     def get_work_tile(self) -> List[str] | Dict[str, Dict[Tree, List[Tree]]]:
         """
@@ -154,7 +154,7 @@ class Mapping:
         The == operator for Mappings
         """
         if isinstance(other, type(self)):
-            return self.work_atom == other.work_atom and \
-                self.work_unit == other.work_unit and \
+            return self.work_quark == other.work_quark and \
+                self.work_atom == other.work_atom and \
                 self.work_tile == other.work_tile
         return False

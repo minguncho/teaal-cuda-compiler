@@ -41,8 +41,8 @@ einsum:
   expressions:
     - Z[m] = A[m, k] * B[k]
 mapping:
+  work_quark: [M, K]
   work_atom: [M, K]
-  work_unit: [M, K]
   work_tile: [M]
 scheduler:
   thread_mapped
