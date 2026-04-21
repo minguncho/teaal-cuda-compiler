@@ -26,7 +26,7 @@ class Partitioner:
         self.tiles_K1 = "A.cols"
         self.atoms_nnz = self.tiles_num_atoms = "1"
 
-    def construct_expr(self) -> Statement:
+    def create_partitioner(self) -> Statement:
         stmts = SBlock([])
         stmts.add(SAssignObj(
             ANewVar(

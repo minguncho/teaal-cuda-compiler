@@ -160,21 +160,12 @@ class HostFn:
                 body.add(SNewEmptyLine())  # Adding a new empty line
 
         # Step 5: Create a partitioner
-        body.add(self.partitioner.construct_expr())
+        body.add(self.partitioner.create_partitioner())
         body.add(SNewEmptyLine())  # Adding a new empty line
 
         # Step 6: Create a scheduler (only thread_mapped)
         if self.program.get_scheduler_type() == "thread_mapped":
-            body.add(
-                SAssignTypename(AVar("setup_t"),
-                                EVar(self.scheduler.construct_expr())))
-            body.add(SAssignObj(
-                ANewVar(
-                    "setup_t", "config"),
-                EFunc("",
-                      [AJust(EMethod(EMethod(EMethod(EVar("partitioner"), "get_work_tiles", []),
-                                             "data", []), "get", [])),
-                       AJust(EMethod(EVar("partitioner"), "get_num_tiles", []))])))
+            body.add(self.scheduler.create_scheduler())
             body.add(SNewEmptyLine())  # Adding a new empty line
 
         # Step 7: Define GPU kernel launch parameters
