@@ -53,9 +53,9 @@ def test_compile():
 
     einsum = Einsum.from_str(loops_yaml)
     mapping = Mapping.from_str(loops_yaml)
-    scheduler = Scheduler.from_str(loops_yaml)
+    schedulerParser = SchedulerParser.from_str(loops_yaml)
 
-    output_file = "./outputs/" + scheduler.get_scheduler() \
+    output_file = "./outputs/" + schedulerParser.get_scheduler() \
         + "_edge.cu"
     problem_type = "SpMV"  # SpMV, SpMM, SpGEMM
     N = 10  # Size of rank N
@@ -65,7 +65,7 @@ def test_compile():
     print("Work unit: ", mapping.get_work_unit())
     print("Work tile: ", mapping.get_work_tile())'''
 
-    gpuloops = GPULoops(einsum, mapping, scheduler,
+    gpuloops = GPULoops(einsum, mapping, schedulerParser,
                         problem_type, N, tracker_enabled)
 
     with open(output_file, "w") as f:

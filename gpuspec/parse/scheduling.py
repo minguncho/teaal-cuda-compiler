@@ -27,7 +27,7 @@ Parse the input YAML for the GPULoops scheduler
 from gpuspec.parse.yaml import YamlParser
 
 
-class Scheduler:
+class SchedulerParser:
     """
     Parse the input YAML for the GPULoops scheduler
     """
@@ -48,14 +48,14 @@ class Scheduler:
             )
 
     @classmethod
-    def from_file(cls, filename: str) -> "Scheduler":
+    def from_file(cls, filename: str) -> "SchedulerParser":
         """
         Construct a new GPULoops scheduler from a YAML file
         """
         return cls(YamlParser.parse_file(filename))
 
     @classmethod
-    def from_str(cls, string: str) -> "Scheduler":
+    def from_str(cls, string: str) -> "SchedulerParser":
         """
         Construct a new GPULoops scheduler from a string in the YAML format
         """
@@ -66,23 +66,6 @@ class Scheduler:
         Get the scheduler
         """
         return self.scheduler
-
-    def construct_expr(self,
-                       threads_per_block: int,
-                       threads_per_tile: int) -> str:
-        expr = ""
-        if self.scheduler == "thread_mapped":
-            expr = (
-                "schedule_edge::setup<schedule_edge::algorithms_t::thread_mapped, " f"{
-                    str(threads_per_block)}, {
-                    str(threads_per_tile)}, " "WorkTile<quarks_t>>")
-        elif self.scheduler == "group_mapped":
-            # TODO: Implement this
-            pass
-        else:  # work_oriented
-            # TODO: Implement this
-            pass
-        return expr
 
     def __eq__(self, other: object) -> bool:
         """

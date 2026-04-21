@@ -44,13 +44,13 @@ if __name__ == "__main__":  # pragma: no cover
     else:
         einsum = Einsum.from_file(sys.argv[1])
         mapping = Mapping.from_file(sys.argv[1])
-        scheduler = Scheduler.from_file(sys.argv[1])
+        schedulerParser = SchedulerParser.from_file(sys.argv[1])
 
         output_file = "./outputs/output.cu"
         problem_type = "SpMV"  # SpMV, SpMM, SpGEMM
         N = 10  # Size of rank N
 
-        gpuloops = GPULoops(einsum, mapping, scheduler,
+        gpuloops = GPULoops(einsum, mapping, schedulerParser,
                             problem_type, N)
 
         with open(output_file, "w") as f:

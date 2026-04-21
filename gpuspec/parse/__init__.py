@@ -26,4 +26,4 @@ SOFTWARE.
 
 from .einsum import Einsum
 from .mapping import Mapping
-from .scheduler import Scheduler
+from .scheduling import SchedulerParser
