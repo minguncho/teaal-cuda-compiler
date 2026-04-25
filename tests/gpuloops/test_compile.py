@@ -7,32 +7,7 @@ import subprocess  # For formatting output file
 from gpuspec.parse import *
 from gpuspec.trans.gpuloops import GPULoops
 
-# Referece, do not actually use the teaal_yaml as an input
-teaal_yaml = """
-einsum:
-  declaration:
-    A: [M, K]
-    B: [K]
-    Z: [M]
-  expressions:
-    - Z[m] = A[m, k] * B[k]
-mapping:
-  rank-order:
-    A: [M, K]
-    B: [K]
-    Z: [M]
-  partitioning:
-    Z:
-      M: [uniform_shape(NUM_TILES), uniform_shape(NUM_THREADS)]
-  loop-order:
-    Z: [M2, M1, M0, K]
-  spacetime:
-    Z:
-      space: [M0]
-      time: [M2, M1, K]
-"""
-
-loops_yaml = """
+spmv_coord_coord_yaml = """
 einsum:
   declaration:
     A: [M, K]
@@ -42,18 +17,59 @@ einsum:
     - Z[m] = A[m, k] * B[k]
 mapping:
   work_quark: [M, K]
-  work_atom: [M, K]
-  work_tile: [M]
+  work_atom:
+    M: [uniform_shape(2)]
+    K: [uniform_shape(2)]
+  work_tile:
+    M1: [uniform_shape(1)]
 scheduler:
   thread_mapped
 """
 
+'''spmv_coordinate_yaml = """
+einsum:
+  declaration:
+    A: [M, K]
+    B: [K]
+    Z: [M]
+  expressions:
+    - Z[m] = A[m, k] * B[k]
+mapping:
+  work_quark: [M, K]
+  work_atom:
+    M: [uniform_shape(2)]
+    K: [uniform_shape(2)]
+  work_tile:
+    M1: []
+scheduler:
+  thread_mapped
+"""
+
+spmv_position_yaml = """
+einsum:
+  declaration:
+    A: [M, K]
+    B: [K]
+    Z: [M]
+  expressions:
+    - Z[m] = A[m, k] * B[k]
+mapping:
+  work_quark: [M, K]
+  work_atom:
+    (M, K): [flatten()]
+    MK: [uniform_occupancy(A.4)]
+  work_tile:
+    MK1: [uniform_shape(2)]
+scheduler:
+  thread_mapped
+"""'''
+
 
 def test_compile():
-
-    einsum = Einsum.from_str(loops_yaml)
-    mapping = Mapping.from_str(loops_yaml)
-    schedulerParser = SchedulerParser.from_str(loops_yaml)
+    str_yaml = spmv_coord_coord_yaml
+    einsum = Einsum.from_str(str_yaml)
+    mapping = Mapping.from_str(str_yaml)
+    schedulerParser = SchedulerParser.from_str(str_yaml)
 
     output_file = "./outputs/" + schedulerParser.get_scheduler() \
         + "_edge.cu"

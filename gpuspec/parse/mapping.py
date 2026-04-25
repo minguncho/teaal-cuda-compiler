@@ -41,8 +41,8 @@ class Mapping:
         Read the YAML input
         """
         work_quark: List[str]
-        work_atom: List[str] | Dict[str, Dict[Tree, List[Tree]]]
-        work_tile: List[str] | Dict[str, Dict[Tree, List[Tree]]]
+        work_atom: Dict[Tree, List[Tree]]
+        work_tile: Dict[Tree, List[Tree]]
 
         if yaml is not None and "mapping" in yaml.keys() and \
                 yaml["mapping"] is not None:
@@ -52,55 +52,30 @@ class Mapping:
                 work_quark = mapping["work_quark"]
 
             if "work_atom" in mapping.keys():
-                if isinstance(mapping["work_atom"], list):
-                    work_atom = mapping["work_atom"]
-                elif isinstance(mapping["work_atom"], dict):
-                    work_atom = {}
+                work_atom = {}
+                for ranks_str, parts in mapping["work_atom"].items():
+                    if len(parts) > 1:
+                        raise ValueError(
+                            "Current version only supports 1 level of partition of work atom!")
 
-                    for tensor, ranks in mapping["work_atom"].items():
-                        work_atom[tensor] = {}
-
-                        if ranks is None:
-                            continue
-
-                        for ranks_str, parts in ranks.items():
-                            ranks_tree = PartitioningParser.parse_ranks(
-                                ranks_str)
-                            work_atom[tensor][ranks_tree] = []
-                            for part in parts:
-                                work_atom[tensor][ranks_tree].append(
-                                    PartitioningParser.parse_partitioning(part))
-                else:
-                    raise KeyError(
-                        f"Invalid type of work_atom: '{mapping["work_atom"]}', "
-                        "must be a \'list\' of ranks or a \'dict\' of rank and partitioning "
-                        "mapping information")
+                    ranks_tree = PartitioningParser.parse_ranks(ranks_str)
+                    work_atom[ranks_tree] = []
+                    for part in parts:
+                        work_atom[ranks_tree].append(
+                            PartitioningParser.parse_partitioning(part))
 
             if "work_tile" in mapping.keys():
+                work_tile = {}
+                for ranks_str, parts in mapping["work_tile"].items():
+                    if len(parts) > 1:
+                        raise ValueError(
+                            "Current version only supports 1 level of partition of work tile!")
 
-                if isinstance(mapping["work_tile"], list):
-                    work_tile = mapping["work_tile"]
-                elif isinstance(mapping["work_tile"], dict):
-                    work_tile = {}
-
-                    for tensor, ranks in mapping["work_tile"].items():
-                        work_tile[tensor] = {}
-
-                        if ranks is None:
-                            continue
-
-                        for ranks_str, parts in ranks.items():
-                            ranks_tree = PartitioningParser.parse_ranks(
-                                ranks_str)
-                            work_tile[tensor][ranks_tree] = []
-                            for part in parts:
-                                work_tile[tensor][ranks_tree].append(
-                                    PartitioningParser.parse_partitioning(part))
-                else:
-                    raise KeyError(
-                        f"Invalid type of work_tile: '{mapping["work_tile"]}', "
-                        "must be a \'list\' of ranks or a \'dict\' of rank and partitioning "
-                        "mapping information")
+                    ranks_tree = PartitioningParser.parse_ranks(ranks_str)
+                    work_tile[ranks_tree] = []
+                    for part in parts:
+                        work_tile[ranks_tree].append(
+                            PartitioningParser.parse_partitioning(part))
 
         if work_quark is None:
             raise KeyError(f"Undefined work_quark!")
@@ -137,13 +112,13 @@ class Mapping:
         """
         return self.work_quark
 
-    def get_work_atom(self) -> List[str] | Dict[str, Dict[Tree, List[Tree]]]:
+    def get_work_atom(self) -> Dict[Tree, List[Tree]]:
         """
         Get the work_atom information
         """
         return self.work_atom
 
-    def get_work_tile(self) -> List[str] | Dict[str, Dict[Tree, List[Tree]]]:
+    def get_work_tile(self) -> Dict[Tree, List[Tree]]:
         """
         Get the work_tile information
         """

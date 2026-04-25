@@ -4,10 +4,13 @@ INSERT LICENSE HERE
 Top-level GPULoops program representation
 """
 
-from typing import cast, List, Optional
+from lark.tree import Tree
+from typing import cast, List, Set, Optional
 
 from gpuspec.gpuloops import *
 from gpuspec.parse import *
+from gpuspec.ir.tensor import Tensor
+from gpuspec.ir.partitioning import Partitioning
 
 
 class Program:
@@ -64,13 +67,35 @@ class Program:
         }
         self.gpu_typenames = ["setup_t", "index_t", "type_t"]
 
-        # TODO: Add implementation for this instead of hard coding
-        self.partition_method = "coordinate"
-        self.atoms_M0 = "1"
-        self.atoms_K0 = "1"
-        self.tiles_M1 = "1"
-        self.tiles_K1 = "A.cols"
-        self.atoms_nnz = self.tiles_num_atoms = "1"
+        # Get all tensors
+        self.tensors = {}
+        declaration = self.einsum.get_declaration()
+        for ten_name in declaration:
+            tensor = Tensor(ten_name, declaration[ten_name])
+            self.tensors[tensor.root_name()] = tensor
+
+        # Get all einsums
+        self.einsums = []
+        for expr in self.einsum.get_expressions():
+            self.einsums.append(
+                str(next(expr.find_data("output")).children[0]))
+
+        # Apply partitioning
+        self.partitioning = Partitioning(self.tensors)
+        self.partitioning.partition_atoms(self.mapping.get_work_atom())
+        self.partitioning.partition_tiles(self.mapping.get_work_tile())
+
+    def __get_all_ranks(self) -> Set[str]:
+        """
+        Get the set of all ranks of current tensors
+        """
+
+        # Get all ranks
+        ranks = set()
+        for tensor in self.tensors.values():
+            ranks.update(tensor.get_ranks())
+
+        return ranks
 
     """
         Get functions
@@ -108,3 +133,6 @@ class Program:
 
     def get_gpu_typenames(self) -> List[str]:
         return self.gpu_typenames
+
+    def get_partitioning(self) -> Partitioning:
+        return self.partitioning
