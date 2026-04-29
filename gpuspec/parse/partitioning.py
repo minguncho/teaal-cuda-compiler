@@ -33,11 +33,9 @@ class PartitioningParser:
     Lexing and parsing for partitioning mapping information
     """
     partitioning_grammar = """
-        ?start: "uniform_occupancy(" leader "." size ")" -> uniform_occupancy
+        ?start: "uniform_occupancy(" size ")" -> uniform_occupancy
               | "uniform_shape(" size ")" -> uniform_shape
               | "flatten(" ")" -> flatten
-
-        ?leader: NAME -> leader
 
         ?size: NUMBER -> int_sz
              | NAME -> str_sz

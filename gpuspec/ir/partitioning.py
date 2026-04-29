@@ -45,14 +45,13 @@ class Partitioning:
                         "partition_atoms(): Invalid rank to partition!", rank)
 
                 p_type = p_val[0].data
+                val_node = p_val[0].children[0].children[0]
+                val = str(
+                    val_node.value) if hasattr(
+                    val_node,
+                    'value') else str(val_node)
 
                 if p_type == "uniform_shape":
-                    val_node = p_val[0].children[0].children[0]
-                    val = str(
-                        val_node.value) if hasattr(
-                        val_node,
-                        'value') else str(val_node)
-
                     if self.atom_partition_method == "position":
                         raise ValueError(
                             "partition_atoms(): Cannot partition atoms with both by uniform_shape and uniform_occupancy!")
@@ -60,12 +59,6 @@ class Partitioning:
                     self.atom_partition_method = "coordinate"
                     self.partitioned_ranks[rank + "0"] = val
                 elif p_type == "uniform_occupancy":
-                    val_node = p_val[0].children[1].children[0]
-                    val = str(
-                        val_node.value) if hasattr(
-                        val_node,
-                        'value') else str(val_node)
-
                     if self.atom_partition_method == "coordinate":
                         raise ValueError(
                             "partition_atoms(): Cannot partition atoms with both by uniform_shape and uniform_occupancy!")
@@ -117,6 +110,10 @@ class Partitioning:
         Apply partition based on given work_tile
         """
         for p_key, p_val in work_tile.items():
+            if len(p_key.children) != 1:
+                raise ValueError(
+                    "partition_tiles(): Current version does not support flattening ranks in tiles")
+
             rank_node = p_key.children[0]
             rank = str(
                 rank_node.value) if hasattr(
@@ -129,28 +126,29 @@ class Partitioning:
                     "partition_tiles(): Invalid rank to partition!", rank)
 
             p_type = p_val[0].data
+            val_node = p_val[0].children[0].children[0]
+            val = str(
+                val_node.value) if hasattr(
+                val_node,
+                'value') else str(val_node)
 
             if p_type == "uniform_shape":
-                val_node = p_val[0].children[0].children[0]
-                val = str(
-                    val_node.value) if hasattr(
-                    val_node,
-                    'value') else str(val_node)
+                if self.tile_partition_method == "position":
+                    raise ValueError(
+                        "partition_tile(): Cannot partition tiles with both by uniform_shape and uniform_occupancy!")
 
                 self.tile_partition_method = "coordinate"
                 self.partitioned_ranks[rank] = val
             elif p_type == "uniform_occupancy":
-                val_node = p_val[0].children[1].children[0]
-                val = str(
-                    val_node.value) if hasattr(
-                    val_node,
-                    'value') else str(val_node)
+                if self.tile_partition_method == "coordinate":
+                    raise ValueError(
+                        "partition_tile(): Cannot partition tiles with both by uniform_shape and uniform_occupancy!")
 
                 self.tile_partition_method = "position"
                 self.partitioned_ranks[rank] = val
             else:
                 raise ValueError(
-                    "partition_atoms(): Invalid partition syntax!", p_type)
+                    "partition_tiles(): Invalid partition syntax!", p_type)
 
             # Update tensors' new ranks
             self.__update_ranks([rank], [rank[:-1] + "2", rank])
