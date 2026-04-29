@@ -26,7 +26,7 @@ scheduler:
   thread_mapped
 """
 
-'''spmv_coordinate_yaml = """
+spmv_pos_pos_yaml = """
 einsum:
   declaration:
     A: [M, K]
@@ -37,15 +37,15 @@ einsum:
 mapping:
   work_quark: [M, K]
   work_atom:
-    M: [uniform_shape(2)]
-    K: [uniform_shape(2)]
+    M: [uniform_occupancy(A.2)]
+    K: [uniform_occupancy(A.2)]
   work_tile:
-    M1: []
+    M1: [uniform_occupancy(A.2)]
 scheduler:
   thread_mapped
 """
 
-spmv_position_yaml = """
+spmv_pos_flatten_yaml = """
 einsum:
   declaration:
     A: [M, K]
@@ -57,16 +57,16 @@ mapping:
   work_quark: [M, K]
   work_atom:
     (M, K): [flatten()]
-    MK: [uniform_occupancy(A.4)]
+    MK: [uniform_occupancy(A.2)]
   work_tile:
-    MK1: [uniform_shape(2)]
+    MK1: [uniform_occupancy(A.2)]
 scheduler:
   thread_mapped
-"""'''
+"""
 
 
 def test_compile():
-    str_yaml = spmv_coord_coord_yaml
+    str_yaml = spmv_pos_flatten_yaml
     einsum = Einsum.from_str(str_yaml)
     mapping = Mapping.from_str(str_yaml)
     schedulerParser = SchedulerParser.from_str(str_yaml)

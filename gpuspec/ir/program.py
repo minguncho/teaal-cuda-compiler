@@ -81,7 +81,7 @@ class Program:
                 str(next(expr.find_data("output")).children[0]))
 
         # Apply partitioning
-        self.partitioning = Partitioning(self.tensors)
+        self.partitioning = Partitioning(list(self.__get_all_ranks()))
         self.partitioning.partition_atoms(self.mapping.get_work_atom())
         self.partitioning.partition_tiles(self.mapping.get_work_tile())
 

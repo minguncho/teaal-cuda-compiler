@@ -21,6 +21,8 @@ class Partitioner:
         self.atoms_K0 = ""
         self.tiles_M1 = ""
         self.tiles_K1 = ""
+        self.nnzs_per_atom = ""
+        self.num_atoms_per_tile = ""
 
     def create_partitioner(self) -> Statement:
         stmts = SBlock([])
@@ -51,20 +53,31 @@ class Partitioner:
                         [AJust(EVar(self.atoms_M0)),
                          AJust(EVar(self.atoms_K0))])))
         elif self.partitioning.get_atom_partition_method() == "position":
-            self.atoms_M0 = "A.rows"
-            self.atoms_K0 = "A.cols"
+            if (self.partitioning.get_flatten_ranks()):
+                self.nnzs_per_atom = "A.nnzs"
 
-            if "M0" in partitioned_ranks:
-                self.atoms_M0 = partitioned_ranks["M0"]
+                if "MK0" in partitioned_ranks:
+                    self.nnzs_per_atom = partitioned_ranks["MK0"]
 
-            if "K0" in partitioned_ranks:
-                self.atoms_K0 = partitioned_ranks["K0"]
+                stmts.add(SExpr(
+                    EMethod(EVar("partitioner"),
+                            "partition_atoms_position_space_flatten",
+                            [AJust(EVar(self.nnzs_per_atom))])))
+            else:
+                self.atoms_M0 = "A.rows"
+                self.atoms_K0 = "A.cols"
 
-            stmts.add(SExpr(
-                EMethod(EVar("partitioner"),
-                        "partition_atoms_position_space",
-                        [AJust(EVar(self.atoms_M0)),
-                         AJust(EVar(self.atoms_K0))])))
+                if "M0" in partitioned_ranks:
+                    self.atoms_M0 = partitioned_ranks["M0"]
+
+                if "K0" in partitioned_ranks:
+                    self.atoms_K0 = partitioned_ranks["K0"]
+
+                stmts.add(SExpr(
+                    EMethod(EVar("partitioner"),
+                            "partition_atoms_position_space",
+                            [AJust(EVar(self.atoms_M0)),
+                             AJust(EVar(self.atoms_K0))])))
         else:
             raise ValueError(
                 "Invalid atom partition method!, Must be 'coordinate' or 'position")
@@ -88,22 +101,34 @@ class Partitioner:
                         [AJust(EVar(self.tiles_M1)),
                          AJust(EVar(self.tiles_K1))])))
         elif self.partitioning.get_tile_partition_method() == "position":
-            self.tiles_M1 = "(A.rows" + " + " + self.atoms_M0 + \
-                " - 1)" + " / " + self.atoms_M0
-            self.tiles_K1 = "(A.cols" + " + " + self.atoms_K0 + \
-                " - 1)" + " / " + self.atoms_K0
+            if (self.partitioning.get_flatten_ranks()):
+                self.num_atoms_per_tile = "(A.nnzs" + " + " + self.nnzs_per_atom + \
+                    " - 1)" + " / " + self.nnzs_per_atom
 
-            if "M1" in partitioned_ranks:
-                self.tiles_M1 = partitioned_ranks["M1"]
+                if "MK1" in partitioned_ranks:
+                    self.num_atoms_per_tile = partitioned_ranks["MK1"]
 
-            if "K1" in partitioned_ranks:
-                self.tiles_K1 = partitioned_ranks["K1"]
+                stmts.add(SExpr(
+                    EMethod(EVar("partitioner"),
+                            "partition_tiles_position_space_flatten",
+                            [AJust(EVar(self.num_atoms_per_tile))])))
+            else:
+                self.tiles_M1 = "(A.rows" + " + " + self.atoms_M0 + \
+                    " - 1)" + " / " + self.atoms_M0
+                self.tiles_K1 = "(A.cols" + " + " + self.atoms_K0 + \
+                    " - 1)" + " / " + self.atoms_K0
 
-            stmts.add(SExpr(
-                EMethod(EVar("partitioner"),
-                        "partition_tiles_position_space",
-                        [AJust(EVar(self.tiles_M1)),
-                         AJust(EVar(self.tiles_K1))])))
+                if "M1" in partitioned_ranks:
+                    self.tiles_M1 = partitioned_ranks["M1"]
+
+                if "K1" in partitioned_ranks:
+                    self.tiles_K1 = partitioned_ranks["K1"]
+
+                stmts.add(SExpr(
+                    EMethod(EVar("partitioner"),
+                            "partition_tiles_position_space",
+                            [AJust(EVar(self.tiles_M1)),
+                             AJust(EVar(self.tiles_K1))])))
         else:
             raise ValueError(
                 "Invalid atom partition method!, Must be 'coordinate' or 'position")
