@@ -42,16 +42,23 @@ class Partitioning:
                     "partition_atoms(): Invalid rank to partition!")
 
             p_type = p_val[0].data
-            val_node = p_val[0].children[0].children[0]
-            val = str(
-                val_node.value) if hasattr(
-                val_node,
-                'value') else str(val_node)
 
             if p_type == "uniform_shape":
+                val_node = p_val[0].children[0].children[0]
+                val = str(
+                    val_node.value) if hasattr(
+                    val_node,
+                    'value') else str(val_node)
+
                 self.atom_partition_method = "coordinate"
                 self.partitioned_ranks[rank + "0"] = val
             elif p_type == "uniform_occupancy":
+                val_node = p_val[0].children[1].children[0]
+                val = str(
+                    val_node.value) if hasattr(
+                    val_node,
+                    'value') else str(val_node)
+
                 self.atom_partition_method = "position"
                 self.partitioned_ranks[rank + "0"] = val
             else:
@@ -79,16 +86,23 @@ class Partitioning:
                     "partition_tiles(): Invalid rank to partition!")
 
             p_type = p_val[0].data
-            val_node = p_val[0].children[0].children[0]
-            val = str(
-                val_node.value) if hasattr(
-                val_node,
-                'value') else str(val_node)
 
             if p_type == "uniform_shape":
+                val_node = p_val[0].children[0].children[0]
+                val = str(
+                    val_node.value) if hasattr(
+                    val_node,
+                    'value') else str(val_node)
+
                 self.tile_partition_method = "coordinate"
                 self.partitioned_ranks[rank] = val
             elif p_type == "uniform_occupancy":
+                val_node = p_val[0].children[1].children[0]
+                val = str(
+                    val_node.value) if hasattr(
+                    val_node,
+                    'value') else str(val_node)
+
                 self.tile_partition_method = "position"
                 self.partitioned_ranks[rank] = val
             else:
